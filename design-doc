@@ -121,9 +121,11 @@ transport_receive_config(NodeConfig cfg);
 ### 5.6 Data Structures / Message Formats
 Defined now even though v1 is single-node, so the coordinator↔node interface doesn't change shape when node #2 arrives.
 
+Node identity: `node_id` (protocol/machine identity) is derived from the ESP32-S3's factory-burned MAC address at boot — guaranteed globally unique, no provisioning step, no DIP switches or hand-assigned IDs. `node_name` (Section 5.7 JSON config) is a separate, optional human-readable label for logs/display only — never used in protocol logic, so a typo there can't cause an identity collision.
+
 ```c
 typedef struct {
-    uint8_t  node_id;
+    uint64_t node_id;        // derived from factory MAC, guaranteed unique
     bool     converged;
     float    residual_power;
     float    tracked_freq_hz[MAX_TONES];
@@ -132,14 +134,14 @@ typedef struct {
 } NodeStatus;
 
 typedef struct {
-    uint16_t filter_taps;
+    uint16_t secondary_path_taps;   // SecondaryPath model length, default 128
     float    normalized_step_size;  // NormalizedStepSize, dimensionless, starting value 0.1
     bool     trigger_recalibration;
 } NodeConfig;
 
 // Future wireless sync payload (Phase 2) — GPIO tick carries no payload in Phase 1
 typedef struct {
-    uint8_t  node_id;
+    uint64_t node_id;        // derived from factory MAC, guaranteed unique
     uint64_t timestamp_us;
     uint32_t sequence_number;
 } SyncMessage;
@@ -150,13 +152,16 @@ typedef struct {
 - Parsing: cJSON (bundled with ESP-IDF)
 - Boot: `BOOT` state loads JSON into in-memory `NodeConfig`; missing/corrupt file falls back to compiled-in defaults and writes them out fresh
 - Runtime updates via serial command interface (`ConfigTask`): get/set individual fields by name; a set updates the in-memory value immediately and persists the whole file back to flash — no recompilation required for any value in the file
-- `filter_taps` and `dma_block_samples` changes require a defined buffer reinit step (not a full reboot) since they affect allocation sizes
+- `secondary_path_taps` and `dma_block_samples` changes require a defined buffer reinit step (not a full reboot) since they affect allocation sizes
 - `ε` (NLMS regularization constant) stays a compile-time constant — a numerical-safety floor, not a bench-tuning parameter
 - Config fields (all runtime-adjustable via the JSON file):
 ```json
 {
+  "identity": {
+    "node_name": "node-1"
+  },
   "dsp": {
-    "filter_taps": 48,
+    "secondary_path_taps": 128,
     "normalized_step_size": 0.1,
     "dma_block_samples": 32
   },
@@ -240,7 +245,8 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 **Why SecondaryPath calibration exists at all:** FxLMS structurally requires a SecondaryPath estimate to compute FilteredReference. Without one, cancellation doesn't just get less accurate — it can diverge outright.
 
 - Sample rate: 8kHz
-- Filter: FxLMS, 32–64 taps starting point (tune by room reverb time)
+- **FxLMS FilterWeights: 2 per tracked tone** (amplitude/phase of the synthesized sinusoid) — small by design, a consequence of the synthesized-reference decision, not a general-purpose FIR
+- **SecondaryPath model length: 128 taps (16ms at 8kHz), separate parameter from FxLMS's weights.** Must be long enough to represent the true round-trip loop delay (mic→compute→DAC→amp→acoustic travel), or FxLMS and EstimatedNoise reconstruction both become inaccurate regardless of other tuning. See Section 6.2 (Latency Budget) for sizing rationale — 128 is a safe starting default, verified against the calibration probe's actual measured impulse response once hardware exists, not assumed correct
 - Reference signal: synthesized sine/cosine per tracked tone, not acoustically sourced — no dedicated reference mic
 - **Calibration vs alignment (terminology):**
   - **Calibration** — discrete, muted event that measures SecondaryPath (`S(z)`). Responds to an actual physical/location/environment change. States: `CALIBRATE_SECONDARY_PATH` (first boot, no SecondaryPath exists yet) and `RECHECK_SECONDARY_PATH` (triggered recalibration, same mechanism).
@@ -257,6 +263,20 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
   - **Correlation-based confidence gating** — reuse the EstimatedNoise/SynthOutput correlation signal (already computed for the calibration trigger) at a lower "watch" threshold; above it, mark the current lock low-confidence rather than trusting it fully. Catches persistent small-bias self-lock that rate limiting alone can't
   - Deferred (not v1): active dither — deliberately wobble the output frequency and check whether the "locked" tone follows; real ambient noise won't, leakage will by definition. Adds output complexity/audible cost, only worth it if the two guards above prove insufficient on the bench
 
+### 6.2 Latency Budget
+Unlike the broadband case ruled out in Section 1 (~1ms causality ceiling, since an acoustic reference mic requires the reference to arrive before the disturbance it's cancelling), a continuous synthesized-reference tone has no such wall — FxLMS's weights naturally learn to output the correctly phase-shifted tone to compensate for whatever the total loop delay is, as long as it's constant. **Loop latency here is not a hard ceiling — it's an input that SecondaryPath's model length has to be sized to cover.**
+
+Estimated round-trip delay (mic ADC → compute → DAC → amp → acoustic travel to mic):
+| Stage | Estimate |
+|---|---|
+| I2S DMA block | 4ms (32 samples @ 8kHz, Section 6 block size decision) |
+| Core 0 compute (FxLMS + HAL) | Negligible (µs) |
+| DAC/amp output buffering | Sub-ms, negligible |
+| Acoustic travel, speaker→mic (0.5–2m @ ~343 m/s) | 1.5–6ms |
+| **Total (estimated)** | **~5–15ms** |
+
+At 8kHz, 15ms is 120 samples — this is why SecondaryPathTaps defaults to 128 (Section 6, above): it needs to fully span the actual delay with margin, or the model can't represent it at all. **This estimate must be confirmed empirically** once hardware exists, by inspecting the calibration probe's measured impulse response directly (Section 9 validation tooling applies here too) — 128 is a safe starting point, not a substitute for measuring the real number.
+
 ## 7. Development Environment
 - Toolchain: ESP-IDF (not Arduino framework) — raw DMA/I2S timing control required
 - Numeric format: float32 throughout the DSP core (FxLMS, reconstruction, PLL bank). ESP32-S3's hardware FPU removes the usual fixed-point speed advantage; float32's relative precision handles the near-equal-magnitude subtraction in EstimatedNoise far better than fixed-point's absolute precision, avoids manual Q-format scaling on StepSize/weights, and keeps DSP-core behavior consistent between device and host for unit testing
@@ -266,8 +286,25 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 - Platform: ESP32-S3-DevKitC + breakout boards on breadboard; defer custom PCB
 - Single mic placed at the target quiet zone (no separate reference mic to place — acoustic feedback path from speaker to reference mic no longer applies)
 - Output stage: hard soft-clip/ceiling in DAC path, independent of filter math
+- **Power/rail noise (breadboard stage):** because both mic and amp are I2S digital devices, the classic analog "power noise causes audible hum" problem doesn't really apply here — no analog audio signal is ever exposed to the power rail. Remaining risk is minor and handled with standard, beginner-friendly practice:
+  1. 0.1µF ceramic decoupling capacitor across power/ground pins on both the mic and amp breakout boards, as close to each chip as possible
+  2. One larger capacitor (10–47µF) near the amp's power input, to smooth the current bursts it draws when driving the speaker
+  3. Single clean 5V source for everything (a decent wall USB adapter, not a laptop USB port) — don't split power across multiple sources
+  4. Keep breadboard wiring short; keep speaker/amp wiring physically separated from mic wiring where possible
+  5. Only dig further if audible noise actually shows up after the above — proper PCB-stage power design (planes, filtering) is deferred until the custom PCB step, not needed for the breadboard prototype
 
 ## 9. Validation & Testing
+
+### 9.1 Host-Side Unit Testing (off-target)
+- DSP core, calibration, and alignment code build and run on a host machine — already possible by construction: those layers are hardware/network-agnostic (Section 5.1) and float32 behaves near-identically host vs device (Section 7)
+- Build: second plain-CMake target alongside the ESP-IDF build, compiling the same sources against a test harness — no `#ifdef` branching
+- Framework: Unity (ships with ESP-IDF — one framework for host and on-device tests)
+- Test inputs: synthetic signals generated in the harness — pure sine at known frequency, sine + noise, deliberately drifting tone, simulated SecondaryPath as a fixed FIR. No hardware needed
+- Coverage: FxLMS convergence on a known tone; PLL lock and drift-following; reconstruction recovering a known AmbientNoise given a known SecondaryPath; correlation detector firing on a deliberately mismatched SecondaryPath; self-lock guards rejecting out-of-bounds frequency jumps
+- Shares code with the offline analysis tooling in 9.2
+- **Not covered off-target:** real acoustic behavior, true SecondaryPath characteristics, I2S/DMA timing, FreeRTOS task interaction, real-time deadline compliance. Host tests validate the math; the bench rig validates the system
+
+### 9.2 Bench Validation (on hardware)
 - The system's own mic cannot validate itself — the control loop actively drives what it reads toward zero, so using it to measure cancellation depth is circular
 - External calibrated measurement mic, independent recording chain, no part in the control loop — placed at the quiet zone, separate from the system's own mic
 - Fixed test rig — cancellation is highly sensitive to geometry (a few cm shifts the whole SecondaryPath); a jig with fixed mounting points for noise source, system mic, speaker, and measurement mic makes results comparable across runs and code changes
@@ -279,7 +316,4 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 - [ ] Target tone(s) for prototype #1
 - [ ] Calibration trigger tuning (correlation threshold, window length, backstop interval, cooldown — all bench-tuning parameters, defaults not yet set)
 - [ ] Self-lock safeguard tuning (max plausible drift rate for rate limiting, "watch" correlation threshold — bench-tuning parameters, defaults not yet set)
-- [ ] End-to-end latency budget (mic → filter → DAC → acoustic output) — not yet measured or targeted
-- [ ] Node ID assignment scheme (hardcoded at flash, DIP switch, derived from MAC)
-- [ ] Power/rail noise considerations (deferred to PCB stage, not breadboard)
-- [ ] Host-machine unit testing for DSP core (build/run off-target)
+- [ ] Confirm SecondaryPathTaps=128 default against measured round-trip delay once hardware exists (Section 6.2 estimate, not yet empirically verified)
