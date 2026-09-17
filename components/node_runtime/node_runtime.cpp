@@ -28,20 +28,27 @@ uint32_t nowMs() {
 
 const char* toString(NodeState s) {
     switch (s) {
-        case NodeState::Boot:                   return "BOOT";
-        case NodeState::InitHal:                return "INIT_HAL";
-        case NodeState::CalibrateSecondaryPath: return "CALIBRATE_SECONDARY_PATH";
-        case NodeState::Run:                    return "RUN";
-        case NodeState::RecheckSecondaryPath:   return "RECHECK_SECONDARY_PATH";
-        case NodeState::Fault:                  return "FAULT";
-        case NodeState::SafeMute:               return "SAFE_MUTE";
+        case NodeState::Boot:
+            return "BOOT";
+        case NodeState::InitHal:
+            return "INIT_HAL";
+        case NodeState::CalibrateSecondaryPath:
+            return "CALIBRATE_SECONDARY_PATH";
+        case NodeState::Run:
+            return "RUN";
+        case NodeState::RecheckSecondaryPath:
+            return "RECHECK_SECONDARY_PATH";
+        case NodeState::Fault:
+            return "FAULT";
+        case NodeState::SafeMute:
+            return "SAFE_MUTE";
     }
     return "UNKNOWN";
 }
 
 uint64_t NodeRuntime::deriveNodeId() {
     uint8_t mac[6] = {};
-    esp_err_t err = esp_efuse_mac_get_default(mac);
+    esp_err_t err  = esp_efuse_mac_get_default(mac);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "MAC read failed: %s", esp_err_to_name(err));
         return 0;
@@ -55,11 +62,12 @@ uint64_t NodeRuntime::deriveNodeId() {
 }
 
 void NodeRuntime::transitionTo(NodeState next) {
-    if (next == state_) return;
+    if (next == state_)
+        return;
     ESP_LOGI(kTag, "%s -> %s", toString(state_), toString(next));
     state_ = next;
 
-    NodeStatus s = status_.read();
+    NodeStatus s  = status_.read();
     s.state       = state_;
     s.timestampMs = nowMs();
     status_.publish(s);
@@ -73,20 +81,18 @@ NodeState NodeRuntime::doBoot() {
         ESP_LOGE(kTag, "flash unusable, running on compiled-in defaults");
         config_ = NodeConfig::defaults();
     } else {
-        store_.load(config_);   // always leaves config_ usable
+        store_.load(config_);  // always leaves config_ usable
     }
 
-    ESP_LOGI(kTag, "name=%s taps=%u mu=%.3f block=%u tones=%u",
-             config_.nodeName,
+    ESP_LOGI(kTag, "name=%s taps=%u mu=%.3f block=%u tones=%u", config_.nodeName,
              static_cast<unsigned>(config_.secondaryPathTaps),
-             config_.normalizedStepSize,
-             static_cast<unsigned>(config_.dmaBlockSamples),
+             config_.normalizedStepSize, static_cast<unsigned>(config_.dmaBlockSamples),
              static_cast<unsigned>(config_.numTones));
 
     NodeStatus s{};
-    s.nodeId      = nodeId_;
-    s.state       = NodeState::Boot;
-    s.numTones    = config_.numTones;
+    s.nodeId   = nodeId_;
+    s.state    = NodeState::Boot;
+    s.numTones = config_.numTones;
     for (int i = 0; i < config_.numTones; ++i) {
         s.trackedFreqHz[i] = config_.initialFreqHz[i];
         s.freqLocked[i]    = false;
@@ -128,10 +134,8 @@ void NodeRuntime::spawnTasks() {
                 NodeStatus s = self->status().read();
                 ESP_LOGI("telemetry",
                          "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u",
-                         toString(s.state),
-                         static_cast<int>(s.converged),
-                         s.residualPower,
-                         s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
+                         toString(s.state), static_cast<int>(s.converged),
+                         s.residualPower, s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
                          s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
                          static_cast<unsigned>(s.clipEvents));
                 vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
@@ -157,7 +161,7 @@ void NodeRuntime::start() {
 
             case NodeState::InitHal:
                 next = doInitHal();
-                spawnTasks();   // once HAL exists, tasks can run
+                spawnTasks();  // once HAL exists, tasks can run
                 break;
 
             case NodeState::CalibrateSecondaryPath:

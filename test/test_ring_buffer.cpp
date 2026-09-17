@@ -34,19 +34,19 @@ void test_push_pop_preserves_order() {
 void test_push_fails_when_full_instead_of_blocking() {
     // This is the behavior FilterTask depends on: a full buffer must
     // return false so the caller can drop the sample, never block.
-    using Rb = SpscRingBuffer<int, 4>;   // alias: the template comma
-    Rb rb;                               // would split the macro args
-                                         // usable capacity 3
+    using Rb = SpscRingBuffer<int, 4>;  // alias: the template comma
+    Rb rb;                              // would split the macro args
+                                        // usable capacity 3
     TEST_ASSERT_EQUAL_UINT(3, Rb::capacity());
     TEST_ASSERT_TRUE(rb.push(1));
     TEST_ASSERT_TRUE(rb.push(2));
     TEST_ASSERT_TRUE(rb.push(3));
-    TEST_ASSERT_FALSE(rb.push(4));   // full: dropped, not blocked
+    TEST_ASSERT_FALSE(rb.push(4));  // full: dropped, not blocked
 
     int out = 0;
-    TEST_ASSERT_TRUE(rb.pop(out));   // freeing one slot
+    TEST_ASSERT_TRUE(rb.pop(out));  // freeing one slot
     TEST_ASSERT_EQUAL_INT(1, out);
-    TEST_ASSERT_TRUE(rb.push(4));    // now fits
+    TEST_ASSERT_TRUE(rb.push(4));  // now fits
 }
 
 void test_wraps_around_repeatedly() {

@@ -1,5 +1,7 @@
 # ANC — Tonal Active Noise Cancellation
 
+[![CI](https://github.com/GageLawton/noise-cancellation/actions/workflows/ci.yml/badge.svg)](https://github.com/GageLawton/noise-cancellation/actions/workflows/ci.yml)
+
 Coordinated multi-node active noise cancellation on ESP32-S3. Narrowband
 FxLMS cancellation of tonal noise (HVAC hum, transformer buzz), built to
 scale to synchronized multi-node hardware.
@@ -38,6 +40,47 @@ cd build && ctest --output-on-failure
 
 Unity is fetched automatically on first configure. Requires CMake 3.16+,
 a C++17 compiler, and network access for the initial fetch.
+
+## Coverage
+
+```bash
+pip install gcovr
+./scripts/coverage.sh          # add --open to view the HTML report
+```
+
+Current baseline is ~91% lines, 100% functions. CI fails below 85% —
+deliberately below the current number so it catches a real regression
+rather than failing on noise. Raise the threshold as the DSP core fills
+in and coverage becomes more meaningful.
+
+A caveat on reading the numbers: gcov accounts for each template
+instantiation separately, so header-only templates like
+`SpscRingBuffer` report a few lines uncovered even when another
+instantiation exercises them heavily. 100% is not a realistic target
+there.
+
+## Formatting
+
+```bash
+clang-format -i $(find components main test -name '*.cpp' -o -name '*.hpp')
+```
+
+CI checks this and fails on any diff. Config is in `.clang-format`.
+
+## CI
+
+Four jobs run on every push and PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+| Job | What it catches |
+|---|---|
+| Host tests | Logic regressions in portable code — fast, no hardware |
+| Coverage | Untested new code, via an 85% line-coverage gate |
+| Firmware build | ESP-IDF component/driver mistakes host tests can't see |
+| Format check | Style drift |
+
+The firmware build is the only job that compiles against real ESP-IDF —
+host tests never touch it, so component dependency errors surface only
+here.
 
 ## Device build
 
@@ -114,4 +157,5 @@ components/
 main/            app_main.cpp
 test/            host build + Unity tests
 tools/           offline analysis scripts
+scripts/         dev helpers (coverage)
 ```

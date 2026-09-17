@@ -28,7 +28,7 @@ void test_rejects_step_size_outside_stability_bound() {
     c.normalizedStepSize = 0.0f;
     TEST_ASSERT_FALSE(c.validate());
 
-    c.normalizedStepSize = 2.0f;   // NLMS bound is strictly (0, 2)
+    c.normalizedStepSize = 2.0f;  // NLMS bound is strictly (0, 2)
     TEST_ASSERT_FALSE(c.validate());
 
     c.normalizedStepSize = 1.9f;
@@ -38,10 +38,10 @@ void test_rejects_step_size_outside_stability_bound() {
 void test_rejects_tone_above_nyquist() {
     NodeConfig c = NodeConfig::defaults();
 
-    c.initialFreqHz[0] = anc::kSampleRateHz / 2.0f;   // exactly Nyquist
+    c.initialFreqHz[0] = anc::kSampleRateHz / 2.0f;  // exactly Nyquist
     TEST_ASSERT_FALSE(c.validate());
 
-    c.initialFreqHz[0] = 3999.0f;                     // just under
+    c.initialFreqHz[0] = 3999.0f;  // just under
     TEST_ASSERT_TRUE(c.validate());
 }
 
@@ -58,7 +58,7 @@ void test_rejects_watch_threshold_above_trigger() {
 }
 
 void test_rejects_backstop_shorter_than_cooldown() {
-    NodeConfig c = NodeConfig::defaults();
+    NodeConfig c         = NodeConfig::defaults();
     c.backstopIntervalMs = c.cooldownMs - 1;
     TEST_ASSERT_FALSE(c.validate());
 }

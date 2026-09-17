@@ -20,7 +20,7 @@ public:
     void start();
 
     const NodeConfig& config() const { return config_; }
-    NodeStatusStore&  status()       { return status_; }
+    NodeStatusStore& status() { return status_; }
 
 private:
     void transitionTo(NodeState next);
@@ -36,11 +36,11 @@ private:
     // Reads the factory-burned MAC and folds it into a 64-bit id.
     static uint64_t deriveNodeId();
 
-    ConfigStore     store_;
-    NodeConfig      config_{};
-    NodeState       state_ = NodeState::Boot;
+    ConfigStore store_;
+    NodeConfig config_{};
+    NodeState state_ = NodeState::Boot;
     NodeStatusStore status_;
-    uint64_t        nodeId_ = 0;
+    uint64_t nodeId_ = 0;
 };
 
 }  // namespace anc

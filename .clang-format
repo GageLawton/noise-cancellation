@@ -1,0 +1,24 @@
+# Matches the style already used across the repo.
+BasedOnStyle: Google
+
+Language: Cpp
+Standard: c++17
+
+IndentWidth: 4
+ColumnLimit: 88
+AccessModifierOffset: -4
+
+# Keep pointer/reference binding to the type: `float* buf`, not `float *buf`
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Trailing `//` comments line up, which the DSP code leans on heavily
+AlignTrailingComments: true
+AlignConsecutiveAssignments: Consecutive
+
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve

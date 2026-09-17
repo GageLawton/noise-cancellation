@@ -13,19 +13,19 @@ namespace anc {
 // Single-writer / multi-reader: only the owning task mutates it via
 // NodeStatusStore. Readers get a plain copy.
 struct NodeStatus {
-    uint64_t  nodeId;                       // MAC-derived, globally unique
+    uint64_t nodeId;  // MAC-derived, globally unique
     NodeState state;
 
-    bool      converged;
-    float     residualPower;
+    bool converged;
+    float residualPower;
 
-    float     trackedFreqHz[kMaxTones];
-    bool      freqLocked[kMaxTones];
-    uint8_t   numTones;
+    float trackedFreqHz[kMaxTones];
+    bool freqLocked[kMaxTones];
+    uint8_t numTones;
 
-    bool      lowConfidence;                // self-lock watch gate tripped
-    uint32_t  clipEvents;                   // cumulative output clip count
-    uint32_t  timestampMs;
+    bool lowConfidence;   // self-lock watch gate tripped
+    uint32_t clipEvents;  // cumulative output clip count
+    uint32_t timestampMs;
 };
 
 // Lock-free-enough status holder: the writer publishes whole snapshots
@@ -47,7 +47,8 @@ public:
         uint32_t before;
         do {
             before = seq_.load(std::memory_order_acquire);
-            if (before & 1u) continue;      // writer mid-update, retry
+            if (before & 1u)
+                continue;  // writer mid-update, retry
             out = status_;
         } while (before != seq_.load(std::memory_order_acquire));
         return out;

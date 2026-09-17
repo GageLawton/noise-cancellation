@@ -22,8 +22,7 @@ namespace anc {
 template <typename T, std::size_t Capacity>
 class SpscRingBuffer {
     static_assert(Capacity >= 2, "capacity must be at least 2");
-    static_assert((Capacity & (Capacity - 1)) == 0,
-                  "capacity must be a power of two");
+    static_assert((Capacity & (Capacity - 1)) == 0, "capacity must be a power of two");
 
 public:
     // Producer side only.

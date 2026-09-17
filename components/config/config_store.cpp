@@ -11,10 +11,10 @@
 namespace anc {
 namespace {
 
-constexpr const char* kTag           = "config";
-constexpr const char* kMountPoint    = "/cfg";
+constexpr const char* kTag            = "config";
+constexpr const char* kMountPoint     = "/cfg";
 constexpr const char* kPartitionLabel = "config";
-constexpr const char* kConfigPath    = "/cfg/node.json";
+constexpr const char* kConfigPath     = "/cfg/node.json";
 
 // cJSON hands back raw owning pointers; these make the ownership
 // automatic so no path through this file can leak on an early return.
@@ -29,7 +29,10 @@ struct CjsonStringDeleter {
 using CjsonStringPtr = std::unique_ptr<char, CjsonStringDeleter>;
 
 struct FileDeleter {
-    void operator()(FILE* p) const { if (p) fclose(p); }
+    void operator()(FILE* p) const {
+        if (p)
+            fclose(p);
+    }
 };
 using FilePtr = std::unique_ptr<FILE, FileDeleter>;
 
@@ -85,7 +88,8 @@ bool parseJson(const char* text, NodeConfig& cfg) {
         readU16(dsp, "dma_block_samples", cfg.dmaBlockSamples);
     }
 
-    if (const cJSON* cal = cJSON_GetObjectItemCaseSensitive(root.get(), "calibration")) {
+    if (const cJSON* cal =
+            cJSON_GetObjectItemCaseSensitive(root.get(), "calibration")) {
         readU32(cal, "probe_duration_ms", cfg.probeDurationMs);
         readFloat(cal, "correlation_threshold", cfg.correlationThreshold);
         readU32(cal, "correlation_window_ms", cfg.correlationWindowMs);
@@ -97,14 +101,16 @@ bool parseJson(const char* text, NodeConfig& cfg) {
         const cJSON* freqs = cJSON_GetObjectItemCaseSensitive(trk, "initial_freq_hz");
         if (cJSON_IsArray(freqs)) {
             int n = cJSON_GetArraySize(freqs);
-            if (n > kMaxTones) n = kMaxTones;
+            if (n > kMaxTones)
+                n = kMaxTones;
             for (int i = 0; i < n; ++i) {
                 const cJSON* f = cJSON_GetArrayItem(freqs, i);
                 if (cJSON_IsNumber(f)) {
                     cfg.initialFreqHz[i] = static_cast<float>(f->valuedouble);
                 }
             }
-            if (n > 0) cfg.numTones = static_cast<uint8_t>(n);
+            if (n > 0)
+                cfg.numTones = static_cast<uint8_t>(n);
         }
         readFloat(trk, "max_drift_rate_hz_per_sec", cfg.maxDriftRateHzPerSec);
         readFloat(trk, "watch_correlation_threshold", cfg.watchCorrelationThreshold);
@@ -115,7 +121,8 @@ bool parseJson(const char* text, NodeConfig& cfg) {
 
 CjsonStringPtr serializeJson(const NodeConfig& cfg) {
     CjsonPtr root(cJSON_CreateObject());
-    if (!root) return nullptr;
+    if (!root)
+        return nullptr;
 
     cJSON* id = cJSON_AddObjectToObject(root.get(), "identity");
     cJSON_AddStringToObject(id, "node_name", cfg.nodeName);
@@ -132,7 +139,7 @@ CjsonStringPtr serializeJson(const NodeConfig& cfg) {
     cJSON_AddNumberToObject(cal, "backstop_interval_ms", cfg.backstopIntervalMs);
     cJSON_AddNumberToObject(cal, "cooldown_ms", cfg.cooldownMs);
 
-    cJSON* trk = cJSON_AddObjectToObject(root.get(), "tracking");
+    cJSON* trk   = cJSON_AddObjectToObject(root.get(), "tracking");
     cJSON* freqs = cJSON_AddArrayToObject(trk, "initial_freq_hz");
     for (int i = 0; i < cfg.numTones; ++i) {
         cJSON_AddItemToArray(freqs, cJSON_CreateNumber(cfg.initialFreqHz[i]));
@@ -147,13 +154,14 @@ CjsonStringPtr serializeJson(const NodeConfig& cfg) {
 }  // namespace
 
 bool ConfigStore::mount() {
-    if (mounted_) return true;
+    if (mounted_)
+        return true;
 
     esp_vfs_littlefs_conf_t conf = {};
-    conf.base_path              = kMountPoint;
-    conf.partition_label        = kPartitionLabel;
-    conf.format_if_mount_failed = true;   // blank flash on first boot
-    conf.dont_mount             = false;
+    conf.base_path               = kMountPoint;
+    conf.partition_label         = kPartitionLabel;
+    conf.format_if_mount_failed  = true;  // blank flash on first boot
+    conf.dont_mount              = false;
 
     esp_err_t err = esp_vfs_littlefs_register(&conf);
     if (err != ESP_OK) {
@@ -185,7 +193,7 @@ bool ConfigStore::load(NodeConfig& out) {
         if (size > 0 && size < 8192) {
             std::unique_ptr<char[]> buf(new char[size + 1]);
             size_t read = fread(buf.get(), 1, static_cast<size_t>(size), f.get());
-            buf[read] = '\0';
+            buf[read]   = '\0';
 
             if (parseJson(buf.get(), out) && out.validate()) {
                 usable = true;
@@ -205,7 +213,7 @@ bool ConfigStore::load(NodeConfig& out) {
     }
 
     out = NodeConfig::defaults();
-    save(out);   // best-effort; a write failure still leaves us runnable
+    save(out);  // best-effort; a write failure still leaves us runnable
     return true;
 }
 
@@ -234,8 +242,8 @@ bool ConfigStore::save(const NodeConfig& cfg) {
     size_t len     = std::strlen(text.get());
     size_t written = fwrite(text.get(), 1, len, f.get());
     if (written != len) {
-        ESP_LOGE(kTag, "short write (%u of %u)",
-                 static_cast<unsigned>(written), static_cast<unsigned>(len));
+        ESP_LOGE(kTag, "short write (%u of %u)", static_cast<unsigned>(written),
+                 static_cast<unsigned>(len));
         return false;
     }
 

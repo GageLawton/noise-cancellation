@@ -27,22 +27,22 @@ struct NodeConfig {
     char nodeName[kNodeNameMaxLen];
 
     // --- dsp ---
-    uint16_t secondaryPathTaps;    // SecondaryPath model length
-    float    normalizedStepSize;   // NLMS mu, dimensionless, (0, 2)
-    uint16_t dmaBlockSamples;      // I2S DMA block size
+    uint16_t secondaryPathTaps;  // SecondaryPath model length
+    float normalizedStepSize;    // NLMS mu, dimensionless, (0, 2)
+    uint16_t dmaBlockSamples;    // I2S DMA block size
 
     // --- calibration ---
     uint32_t probeDurationMs;
-    float    correlationThreshold;     // fires a calibration event
+    float correlationThreshold;  // fires a calibration event
     uint32_t correlationWindowMs;
-    uint32_t backstopIntervalMs;       // max time between calibrations
-    uint32_t cooldownMs;               // min time between calibrations
+    uint32_t backstopIntervalMs;  // max time between calibrations
+    uint32_t cooldownMs;          // min time between calibrations
 
     // --- tracking ---
-    float    initialFreqHz[kMaxTones];  // PLL starting hints
-    uint8_t  numTones;
-    float    maxDriftRateHzPerSec;      // self-lock rate limit
-    float    watchCorrelationThreshold; // low-confidence gate
+    float initialFreqHz[kMaxTones];  // PLL starting hints
+    uint8_t numTones;
+    float maxDriftRateHzPerSec;       // self-lock rate limit
+    float watchCorrelationThreshold;  // low-confidence gate
 
     // Compiled-in fallback, used on first flash or if the JSON file
     // is missing/corrupt. Always writable back out as a fresh file.

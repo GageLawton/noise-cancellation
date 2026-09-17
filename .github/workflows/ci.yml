@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch cancels the previous run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-tests:
+    name: Host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B test/build -S test -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build test/build --parallel
+
+      - name: Test
+        working-directory: test/build
+        run: ctest --output-on-failure
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gcovr
+        run: pipx install gcovr
+
+      - name: Configure with coverage
+        run: cmake -B test/build -S test -DANC_COVERAGE=ON
+
+      - name: Build
+        run: cmake --build test/build --parallel
+
+      - name: Test
+        working-directory: test/build
+        run: ctest --output-on-failure
+
+      # Threshold is deliberately below the current number: it should
+      # catch a real regression, not fail on noise. Raise it as the DSP
+      # core fills in and coverage becomes more meaningful.
+      - name: Report
+        working-directory: test/build
+        run: |
+          gcovr --root "$GITHUB_WORKSPACE" \
+                --filter "$GITHUB_WORKSPACE/components/" \
+                --exclude '.*/_deps/.*' \
+                --html-details coverage.html \
+                --xml coverage.xml \
+                --print-summary \
+                --fail-under-line 85 \
+                | tee "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: test/build/coverage*.html
+
+  firmware-build:
+    name: Firmware build (ESP32-S3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds the real ESP-IDF target. This is the only job that
+      # catches component-dependency and driver-API mistakes -- host
+      # tests never touch ESP-IDF.
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32s3
+          path: '.'
+
+  format:
+    name: Format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Check
+        run: |
+          files=$(find components main test -name '*.cpp' -o -name '*.hpp')
+          if [ -z "$files" ]; then
+            echo "no sources found"; exit 1
+          fi
+          clang-format --dry-run --Werror $files

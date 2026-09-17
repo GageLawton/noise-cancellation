@@ -1,69 +1,23 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
 build/
-Build/
-build-*/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
 
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
+# host test builds
+test/build/
+test/build-coverage/
 
-# Temporary files
-*.tmp
-*.log
-*.bak
-*.swp
+# coverage artifacts
+*.gcda
+*.gcno
+*.gcov
+coverage*.html
+coverage*.xml
+coverage*.css
 
-# vcpkg
-vcpkg_installed/
+__pycache__/
+*.pyc
 
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+.vscode/
+.DS_Store
