@@ -1,0 +1,5 @@
+# name,   type, subtype, offset,  size,    flags
+nvs,      data, nvs,     ,        24K,
+phy_init, data, phy,     ,        4K,
+factory,  app,  factory, ,        1500K,
+config,   data, spiffs,  ,        64K,

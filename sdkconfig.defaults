@@ -1,0 +1,22 @@
+# Target
+CONFIG_IDF_TARGET="esp32s3"
+
+# C++: no exceptions, no RTTI (design doc 10.1)
+CONFIG_COMPILER_CXX_EXCEPTIONS=n
+CONFIG_COMPILER_CXX_RTTI=n
+
+# Custom partition table with a LittleFS partition for the JSON config
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Dual-core: core 0 is reserved for the real-time audio path
+CONFIG_FREERTOS_UNICORE=n
+
+# 1kHz tick so pdMS_TO_TICKS(1) is meaningful for audio timing
+CONFIG_FREERTOS_HZ=1000
+
+# Hardware FPU (design doc 7: float32 throughout the DSP core)
+CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y
+
+# Keep logs readable on the bench
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
