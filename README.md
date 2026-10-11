@@ -8,6 +8,8 @@ scale to synchronized multi-node hardware.
 
 Full design rationale: [`docs/design.md`](docs/design.md).
 
+Hardware setup: [`docs/hardware.md`](docs/hardware.md).
+
 ## Status
 
 **M1 complete.** The device boots, loads its JSON config from flash, runs
