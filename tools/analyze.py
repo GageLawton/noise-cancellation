@@ -60,12 +60,16 @@ def main():
     p.add_argument("cancelled", nargs="?", help="recording with canceller running")
     p.add_argument("--freq", type=float,
                    help="target frequency in Hz (default: auto-detect)")
+    p.add_argument("--bandwidth", type=float, default=2.0,
+                   help="half-width of the measurement band in Hz (default: 2.0)")
     args = p.parse_args()
+    if args.bandwidth <= 0:
+        p.error("--bandwidth must be greater than 0")
 
     base, rate = read_wav(args.baseline)
 
     freq = args.freq if args.freq else dominant_peak(base, rate)
-    print(f"target frequency: {freq:.2f} Hz")
+    print(f"target frequency: {freq:.2f} Hz (±{args.bandwidth:.1f} Hz)")
 
     if not args.cancelled:
         # Survey mode: just report what is in the room. This is step one
@@ -83,8 +87,8 @@ def main():
     if rate2 != rate:
         sys.exit("sample rate mismatch between recordings")
 
-    rms_off = narrowband_rms(base, rate, freq)
-    rms_on = narrowband_rms(canc, rate, freq)
+    rms_off = narrowband_rms(base, rate, freq, args.bandwidth)
+    rms_on = narrowband_rms(canc, rate, freq, args.bandwidth)
 
     if rms_on <= 0:
         sys.exit("cancelled recording has no energy at target frequency")

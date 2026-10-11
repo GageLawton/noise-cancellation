@@ -228,6 +228,31 @@ found. Keep the clone outside OneDrive (for example `C:\esp\noise-cancellation`)
 because OneDrive locks files while the build writes them, and keep the
 path short and free of spaces.
 
+## Analysis tools
+
+[`tools/analyze.py`](tools/analyze.py) measures how much the canceller
+reduces a tone. It compares two recordings from the external measurement
+mic, one with cancellation off (baseline) and one with it running, and
+reports the drop in dB around the given frequency. It needs Python 3 and
+numpy.
+
+macOS and Linux:
+
+```bash
+pip install -r tools/requirements.txt
+python3 tools/analyze.py baseline.wav cancelled.wav --freq 60
+```
+
+Windows (PowerShell):
+
+```powershell
+pip install -r tools/requirements.txt
+python tools/analyze.py baseline.wav cancelled.wav --freq 60
+```
+
+Run `python3 tools/analyze.py --help` (or `python` on Windows) to see all
+options.
+
 ## Configuration
 
 Runtime settings live in `/cfg/node.json` on the device's LittleFS
