@@ -146,7 +146,7 @@ device always boots into a working state.
 
 ```
 components/
-  hal/           I2S, GPIO sync. Only layer touching ESP-IDF drivers
+  anc_hal/       I2S, GPIO sync. Only layer touching ESP-IDF drivers
   dsp_core/      FirFilter, FxlmsCanceller, RefGenerator
   alignment/     Reconstructor, Pll, DriftDetector
   calibration/   probe generation, impulse response → FIR estimate
