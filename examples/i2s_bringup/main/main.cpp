@@ -1,6 +1,9 @@
+#include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include "driver/i2s_std.h"
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
 
 // Breadboard wiring (see hardware/breadboard-wiring guide).
 // The mic and the amp share BCLK and WS, so both sides run off one clock.
@@ -10,6 +13,22 @@
 #define PIN_DIN  GPIO_NUM_7   // mic SD -> ESP32 (microphone data)
 
 #define SAMPLE_RATE_HZ 16000
+
+// Step 3: read the mic in blocks of 512 samples (32 ms at 16 kHz) and print the
+// level once every 8 blocks, which is about 4 times a second.
+#define BLOCK_SAMPLES     512
+#define BLOCKS_PER_PRINT  8
+
+// Lives outside app_main so the 2 KB buffer doesn't eat the main task's small stack.
+static int32_t mic_block[BLOCK_SAMPLES];
+
+// The INMP441 sends a 24-bit sample left-aligned in a 32-bit slot (the low 8 bits are 0).
+// Shifting right by 8 gives the signed 24-bit value, and dividing by 2^23 scales it
+// to -1.0 .. +1.0, where 1.0 is the loudest the mic can report ("full scale").
+static float mic_sample_to_float(int32_t raw)
+{
+    return (float)(raw >> 8) / 8388608.0f;
+}
 
 extern "C" {
 
@@ -52,6 +71,46 @@ extern "C" {
 
         // Reaching this line means every call above returned ESP_OK.
         printf("Bring-up start! I2S running at %d Hz\n", SAMPLE_RATE_HZ);
+
+        // Step 3: mic level meter. app_main never returns from here.
+        double sum_squares = 0.0;
+        int blocks = 0;
+        while (true) {
+            // Blocks until 512 samples have arrived from the mic (about 32 ms).
+            size_t bytes_read = 0;
+            ESP_ERROR_CHECK(i2s_channel_read(rx, mic_block, sizeof(mic_block), &bytes_read, portMAX_DELAY));
+            size_t n = bytes_read / sizeof(int32_t);
+            if (n == 0) {
+                continue;
+            }
+
+            // Many INMP441 boards add a small constant offset (DC). Subtract the block's
+            // average so the meter shows sound, not that offset.
+            float mean = 0.0f;
+            for (size_t i = 0; i < n; i++) {
+                mean += mic_sample_to_float(mic_block[i]);
+            }
+            mean /= (float)n;
+
+            for (size_t i = 0; i < n; i++) {
+                float x = mic_sample_to_float(mic_block[i]) - mean;
+                sum_squares += (double)x * x;
+            }
+
+            if (++blocks == BLOCKS_PER_PRINT) {
+                // RMS = square root of the average squared sample: the "loudness" of the signal.
+                // dBFS = 20 * log10(rms): 0 dBFS is full scale, quieter is more negative.
+                // Rough guide for an INMP441: quiet room about -75 to -85, talking nearby
+                // about -50 to -40, a clap close by -20 or louder.
+                double rms = sqrt(sum_squares / (BLOCKS_PER_PRINT * (double)n));
+                double dbfs = (rms > 1e-9) ? 20.0 * log10(rms) : -180.0;  // log10(0) is -infinity
+                // raw[0] is one untouched sample, for debugging wiring: all zeros or a value
+                // that never changes means no data is arriving on GPIO7.
+                printf("mic: %7.1f dBFS  (raw[0]=0x%08lx)\n", dbfs, (unsigned long)mic_block[0]);
+                sum_squares = 0.0;
+                blocks = 0;
+            }
+        }
 
     } //app_main
 
