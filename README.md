@@ -190,6 +190,44 @@ I (xxx) runtime: BOOT -> INIT_HAL
 I (xxx) telemetry: state=RUN conv=0 resid=0.000000 freq=60.00 lock=0 clip=0
 ```
 
+### Flashing tips and troubleshooting
+
+**Use the port labelled COM (or UART), not USB.** The ESP32-S3 DevKitC
+has two USB-C ports. The COM/UART one goes through a USB-serial chip:
+esptool can reset the board into flashing mode through it automatically,
+and the firmware's log output comes out there. The USB port is the chip's
+own USB. It shows up with VID `303A`, it won't show these logs, and
+whatever firmware is running can stop esptool reaching the bootloader
+through it.
+
+**Find the right port.** This works in both shells and lists every
+serial port with a description:
+
+```bash
+python -m serial.tools.list_ports -v
+```
+
+The board's COM/UART port mentions `CP210x` or `CH343`. If no such port
+appears, install the matching driver (Silicon Labs CP210x or WCH CH343,
+whichever chip is printed next to the port). To double-check, unplug the
+board and the port should disappear from the list.
+
+**`Failed to connect ... No serial data received`.** The port opened but
+the chip didn't answer. In order:
+
+1. Check you're on the COM/UART port (above).
+2. Force the ROM bootloader: hold **BOOT**, tap **RST**, release
+   **BOOT**, then flash again. Adding `-b 115200` slows the transfer down,
+   which helps with marginal cables.
+3. Take the board out of the breadboard. On many breadboards the
+   DevKitC's two pin rows end up shorted together.
+
+**Windows build environment.** Run `idf.py` from the ESP-IDF 5.3 CMD or
+PowerShell shortcut, not from Git Bash or MSYS2, where `idf.py` isn't
+found. Keep the clone outside OneDrive (for example `C:\esp\noise-cancellation`),
+because OneDrive locks files while the build writes them, and keep the
+path short and free of spaces.
+
 ## Configuration
 
 Runtime settings live in `/cfg/node.json` on the device's LittleFS
