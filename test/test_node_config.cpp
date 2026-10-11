@@ -73,6 +73,35 @@ void test_rejects_tone_count_out_of_range() {
     TEST_ASSERT_FALSE(c.validate());
 }
 
+void test_rejects_correlation_threshold_out_of_range() {
+    // correlationThreshold must be strictly between 0 and 1.
+    NodeConfig c = NodeConfig::defaults();
+
+    c.correlationThreshold = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.correlationThreshold = 1.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.correlationThreshold = 0.5f;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
+void test_rejects_non_positive_drift_rate() {
+    // maxDriftRateHzPerSec must be greater than 0. Check that 0.0 and -1.0 are
+    // rejected.
+    NodeConfig c = NodeConfig::defaults();
+
+    c.maxDriftRateHzPerSec = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.maxDriftRateHzPerSec = -1.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.maxDriftRateHzPerSec = 1.0f;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
 }  // namespace
 
 int main() {
@@ -84,5 +113,7 @@ int main() {
     RUN_TEST(test_rejects_watch_threshold_above_trigger);
     RUN_TEST(test_rejects_backstop_shorter_than_cooldown);
     RUN_TEST(test_rejects_tone_count_out_of_range);
+    RUN_TEST(test_rejects_correlation_threshold_out_of_range);
+    RUN_TEST(test_rejects_non_positive_drift_rate);
     return UNITY_END();
 }
