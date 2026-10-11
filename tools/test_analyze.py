@@ -28,7 +28,7 @@ def test_dominant_peak_finds_tone():
 
 
 def test_dominant_peak_ignores_tones_outside_the_range():
-    # A loud 5 kHz tone must not win when the search range stops at 1 kHz.
+    # A loud 3 kHz tone must not win when the search range stops at 1 kHz.
     signal = sine(amplitude=0.1) + sine(freq_hz=3000.0, amplitude=1.0)
     assert dominant_peak(signal, RATE, lo=20.0, hi=1000.0) == pytest.approx(FREQ, abs=0.5)
 
@@ -67,6 +67,28 @@ def test_read_wav_mono_round_trip(tmp_path):
     write_wav(path, make_tone(FREQ, SECONDS, RATE, 0.5), channels=1)
     data, rate = read_wav(str(path))
     assert rate == RATE
+    assert len(data) == int(RATE * SECONDS)
+    assert dominant_peak(data, rate) == pytest.approx(FREQ, abs=0.5)
+
+
+def test_read_wav_stereo_keeps_the_left_channel(tmp_path):
+    """A stereo file read as mono would halve every reported frequency."""
+    path = tmp_path / "stereo.wav"
+    write_wav(path, make_tone(FREQ, SECONDS, RATE, 0.5, stereo=True), channels=2)
+    data, rate = read_wav(str(path))
+    assert rate == RATE
+    assert len(data) == int(RATE * SECONDS)
+    assert dominant_peak(data, rate) == pytest.approx(FREQ, abs=0.5)
+
+
+def test_read_wav_multichannel_keeps_the_first_channel(tmp_path):
+    """Four channels: the same interleaving rule, not a special case for two."""
+    path = tmp_path / "quad.wav"
+    tone = make_tone(FREQ, SECONDS, RATE, 0.5)
+    interleaved = np.zeros(tone.size * 4, dtype=np.int16)
+    interleaved[0::4] = tone
+    write_wav(path, interleaved, channels=4)
+    data, rate = read_wav(str(path))
     assert len(data) == int(RATE * SECONDS)
     assert dominant_peak(data, rate) == pytest.approx(FREQ, abs=0.5)
 
