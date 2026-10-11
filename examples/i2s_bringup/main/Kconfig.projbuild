@@ -1,0 +1,20 @@
+menu "I2S bring-up"
+
+    config BRINGUP_SAMPLE_RATE_HZ
+        int "I2S sample rate (Hz)"
+        range 8000 48000
+        default 16000
+        help
+            Sample rate for both the mic and the speaker. Issue #52 asks to try 8000
+            to see whether the mic still gives sensible readings at that rate.
+
+    config BRINGUP_NOISE_FLOOR_DBFS
+        int "Quiet-room noise floor (dBFS)"
+        range -120 0
+        default -80
+        help
+            The mic level measured in a quiet room. -80 is a placeholder until it is
+            measured on the real board. The meter prints how far each reading is
+            above this value, so a clap shows up as a big positive number.
+
+endmenu

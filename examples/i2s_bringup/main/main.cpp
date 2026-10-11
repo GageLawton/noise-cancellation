@@ -4,6 +4,7 @@
 #include "driver/i2s_std.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "sdkconfig.h"
 
 // Breadboard wiring (see hardware/breadboard-wiring guide).
 // The mic and the amp share BCLK and WS, so both sides run off one clock.
@@ -12,7 +13,10 @@
 #define PIN_DOUT GPIO_NUM_6   // ESP32 -> amp DIN (speaker data)
 #define PIN_DIN  GPIO_NUM_7   // mic SD -> ESP32 (microphone data)
 
-#define SAMPLE_RATE_HZ 16000
+// Settings you can change without editing code: run `idf.py menuconfig` and open
+// "I2S bring-up". The defaults live in main/Kconfig.projbuild.
+#define SAMPLE_RATE_HZ     CONFIG_BRINGUP_SAMPLE_RATE_HZ
+#define NOISE_FLOOR_DBFS   CONFIG_BRINGUP_NOISE_FLOOR_DBFS  // placeholder until measured
 
 // Step 3: read the mic in blocks of 512 samples (32 ms at 16 kHz) and print the
 // level once every 8 blocks, which is about 4 times a second.
@@ -70,7 +74,8 @@ extern "C" {
         ESP_ERROR_CHECK(i2s_channel_enable(rx));
 
         // Reaching this line means every call above returned ESP_OK.
-        printf("Bring-up start! I2S running at %d Hz\n", SAMPLE_RATE_HZ);
+        printf("Bring-up start! I2S running at %d Hz, noise floor set to %d dBFS\n",
+               SAMPLE_RATE_HZ, NOISE_FLOOR_DBFS);
 
         // Step 3: mic level meter. app_main never returns from here.
         double sum_squares = 0.0;
@@ -106,7 +111,8 @@ extern "C" {
                 double dbfs = (rms > 1e-9) ? 20.0 * log10(rms) : -180.0;  // log10(0) is -infinity
                 // raw[0] is one untouched sample, for debugging wiring: all zeros or a value
                 // that never changes means no data is arriving on GPIO7.
-                printf("mic: %7.1f dBFS  (raw[0]=0x%08lx)\n", dbfs, (unsigned long)mic_block[0]);
+                printf("mic: %7.1f dBFS  (%+5.1f dB above floor)  (raw[0]=0x%08lx)\n",
+                       dbfs, dbfs - NOISE_FLOOR_DBFS, (unsigned long)mic_block[0]);
                 sum_squares = 0.0;
                 blocks = 0;
             }
