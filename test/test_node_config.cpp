@@ -73,6 +73,25 @@ void test_rejects_tone_count_out_of_range() {
     TEST_ASSERT_FALSE(c.validate());
 }
 
+void test_rejects_dma_block_size_out_of_range() {
+    // validate range for dmaBlockSamples is 8 to 256 inclusive. 
+    // Check 7 and 257 are rejected. And 8 and 256 are accepted
+
+    NodeConfig c = NodeConfig::defaults();
+
+    c.dmaBlockSamples = 7;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.dmaBlockSamples = 257;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.dmaBlockSamples = 8;
+    TEST_ASSERT_TRUE(c.validate());
+
+    c.dmaBlockSamples = 256;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
 }  // namespace
 
 int main() {
@@ -84,5 +103,6 @@ int main() {
     RUN_TEST(test_rejects_watch_threshold_above_trigger);
     RUN_TEST(test_rejects_backstop_shorter_than_cooldown);
     RUN_TEST(test_rejects_tone_count_out_of_range);
+    RUN_TEST(test_rejects_dma_block_size_out_of_range);
     return UNITY_END();
 }
