@@ -45,6 +45,28 @@ void test_rejects_tone_above_nyquist() {
     TEST_ASSERT_TRUE(c.validate());
 }
 
+void test_rejects_non_positive_tone() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.initialFreqHz[0] = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.initialFreqHz[0] = -60.0f;
+    TEST_ASSERT_FALSE(c.validate());
+}
+
+void test_ignores_unused_tone_slots() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.numTones         = 1;
+    c.initialFreqHz[1] = 0.0f;
+    TEST_ASSERT_TRUE(c.validate());
+
+    c.numTones         = 2;
+    c.initialFreqHz[1] = 120.0f;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
 void test_rejects_watch_threshold_above_trigger() {
     NodeConfig c = NodeConfig::defaults();
 
@@ -110,6 +132,8 @@ int main() {
     RUN_TEST(test_defaults_match_design_doc);
     RUN_TEST(test_rejects_step_size_outside_stability_bound);
     RUN_TEST(test_rejects_tone_above_nyquist);
+    RUN_TEST(test_rejects_non_positive_tone);
+    RUN_TEST(test_ignores_unused_tone_slots);
     RUN_TEST(test_rejects_watch_threshold_above_trigger);
     RUN_TEST(test_rejects_backstop_shorter_than_cooldown);
     RUN_TEST(test_rejects_tone_count_out_of_range);
