@@ -74,7 +74,7 @@ void test_rejects_tone_count_out_of_range() {
 }
 
 void test_rejects_dma_block_size_out_of_range() {
-    // validate range for dmaBlockSamples is 8 to 256 inclusive. 
+    // validate range for dmaBlockSamples is 8 to 256 inclusive.
     // Check 7 and 257 are rejected. And 8 and 256 are accepted
 
     NodeConfig c = NodeConfig::defaults();
