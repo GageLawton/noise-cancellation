@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from analyze import dominant_peak
 from make_tone import make_tone
 
@@ -14,7 +13,7 @@ AMPLITUDE = 0.5
 
 def test_no_noise_matches_original_output():
     """The default output must stay identical to the original implementation."""
-    t = np.arange(int(round(SECONDS * RATE)), dtype=np.float64) / RATE
+    t = np.arange(round(SECONDS * RATE), dtype=np.float64) / RATE
     tone = AMPLITUDE * np.sin(2.0 * np.pi * FREQ * t)
     expected = np.round(tone * 32767.0).astype(np.int16)
 
