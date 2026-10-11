@@ -24,8 +24,16 @@ def read_wav(path):
         if w.getsampwidth() != 2:
             sys.exit(f"{path}: expected 16-bit PCM")
         rate = w.getframerate()
+        channels = w.getnchannels()
         frames = w.readframes(w.getnframes())
     data = np.frombuffer(frames, dtype=np.int16).astype(np.float64) / 32768.0
+    if channels > 1:
+        # Samples are interleaved (L, R, L, R, ...); keep only the first channel
+        data = data.reshape(-1, channels)[:, 0]
+        if channels == 2:
+            print(f"{path}: stereo file, using left channel")
+        else:
+            print(f"{path}: {channels}-channel file, using first channel")
     return data, rate
 
 
