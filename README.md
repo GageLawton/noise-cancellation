@@ -25,21 +25,71 @@ the milestone table in the design doc (section 10.4).
 | M6 | Alignment (reconstruct, PLL, drift) | |
 | M7 | Multi-node prep (sync line) | |
 
+## Setting up your computer
+
+You need Git, CMake 3.20+, a C++17 compiler (GCC or Clang), and
+clang-format. No ESP32 is needed for anything in this section.
+
+**Windows** (PowerShell):
+
+```powershell
+winget install Git.Git
+winget install Kitware.CMake
+winget install BrechtSanders.WinLibs.POSIX.UCRT.LLVM
+```
+
+The last package is a GCC + LLVM toolchain that includes `g++` and
+`clang-format`. Close and reopen PowerShell afterwards so the new tools
+are on your `PATH`.
+
+**macOS** (Terminal, with [Homebrew](https://brew.sh)):
+
+```bash
+xcode-select --install          # Apple's compiler; skip if already installed
+brew install cmake clang-format
+```
+
+**Linux** (Debian/Ubuntu):
+
+```bash
+sudo apt install git cmake g++ clang-format
+```
+
+Check everything is found (these work in any terminal):
+
+```bash
+git --version
+cmake --version
+clang-format --version
+```
+
 ## Host tests
 
 No hardware needed. The DSP core, alignment, and calibration components
 have no ESP-IDF dependency by design, so they build and run on any
 machine — which is where most of the real debugging happens.
 
+macOS and Linux:
+
 ```bash
 cd test
 cmake -B build -S .
 cmake --build build
-cd build && ctest --output-on-failure
+ctest --test-dir build --output-on-failure
 ```
 
-Unity is fetched automatically on first configure. Requires CMake 3.16+,
-a C++17 compiler, and network access for the initial fetch.
+Windows (PowerShell). The `-G "MinGW Makefiles"` tells CMake to use the
+GCC toolchain installed above instead of Visual Studio:
+
+```powershell
+cd test
+cmake -B build -S . -G "MinGW Makefiles"
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+Unity is fetched automatically on first configure, so the first run needs
+network access. If you change generators, delete `test/build` first.
 
 ## Coverage
 
@@ -47,6 +97,10 @@ a C++17 compiler, and network access for the initial fetch.
 pip install gcovr
 ./scripts/coverage.sh          # add --open to view the HTML report
 ```
+
+The script is bash, so it runs on Linux, macOS, or
+[WSL](https://learn.microsoft.com/windows/wsl/install) on Windows. You
+don't have to run it locally: the Coverage job in CI runs it on every PR.
 
 Current baseline is ~91% lines, 100% functions. CI fails below 85% —
 deliberately below the current number so it catches a real regression
@@ -61,11 +115,23 @@ there.
 
 ## Formatting
 
+Run from the repo root before you commit.
+
+macOS and Linux:
+
 ```bash
-clang-format -i $(find components main test -name '*.cpp' -o -name '*.hpp')
+clang-format -i $(find components main test -path test/build -prune -o \( -name '*.cpp' -o -name '*.hpp' \) -print)
 ```
 
-CI checks this and fails on any diff. Config is in `.clang-format`.
+Windows (PowerShell):
+
+```powershell
+clang-format -i (Get-ChildItem components,main,test -Recurse -Include *.cpp,*.hpp | Where-Object FullName -NotMatch '\\build\\').FullName
+```
+
+CI checks this and fails on any diff. Config is in `.clang-format`. CI
+uses clang-format 18; a much newer version can occasionally format a line
+differently, and the Format check log shows the exact change it wants.
 
 ## CI
 
@@ -84,14 +150,32 @@ here.
 
 ## Device build
 
-Requires [ESP-IDF v5.0+](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/).
+Requires [ESP-IDF v5.3](https://docs.espressif.com/projects/esp-idf/en/v5.3/esp32s3/get-started/),
+the same version CI builds with. The Espressif installer for Windows, or
+the macOS/Linux install steps on that page, set it up.
+
+macOS and Linux:
 
 ```bash
-. $IDF_PATH/export.sh          # once per shell
+. $IDF_PATH/export.sh          # once per terminal
 idf.py set-target esp32s3
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
+
+Windows: open the **ESP-IDF 5.3 PowerShell** shortcut the installer
+created (it has the environment already set up), `cd` to the repo, then:
+
+```powershell
+idf.py set-target esp32s3
+idf.py build
+idf.py -p COM3 flash monitor
+```
+
+Replace the port with your board's. On Windows, Device Manager lists it
+under **Ports (COM & LPT)**. On macOS it looks like `/dev/cu.usbserial-*`
+or `/dev/cu.usbmodem*` (run `ls /dev/cu.*`). On Linux it is usually
+`/dev/ttyUSB0` or `/dev/ttyACM0`. Press `Ctrl+]` to leave the monitor.
 
 On first flash the config partition is blank; the firmware formats it and
 writes default settings automatically. Expected serial output:
