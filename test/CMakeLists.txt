@@ -40,6 +40,7 @@ add_library(anc_portable
 target_compile_options(anc_portable PRIVATE ${ANC_CXX_FLAGS})
 target_link_options(anc_portable PUBLIC ${ANC_LINK_FLAGS})
 target_include_directories(anc_portable PUBLIC
+    ${ANC_ROOT}/components/node_runtime/include
     ${ANC_ROOT}/components/config/include
     ${ANC_ROOT}/components/anc_hal/include
     ${ANC_ROOT}/components/dsp_core/include
