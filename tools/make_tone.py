@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Generate a 16-bit PCM WAV file containing a single test tone.
+
+Testing the offline analysis (analyze.py) needs recordings with a known
+tone in them. On a laptop, with no hardware, this is the quickest way to
+get one.
+
+Usage:
+    ./make_tone.py tone.wav --freq 120
+    ./make_tone.py tone_stereo.wav --freq 60 --stereo
+"""
+
+import argparse
+import wave
+
+import numpy as np
+
+
+def make_tone(freq_hz, seconds, rate, amplitude, stereo=False):
+    """Sine wave as int16 samples, interleaved if stereo.
+
+    A stereo file carries the tone on the left channel and silence on the
+    right: that asymmetry makes it obvious when a reader mixes channels
+    together or treats the interleaved stream as mono.
+    """
+    t = np.arange(int(round(seconds * rate)), dtype=np.float64) / rate
+    tone = amplitude * np.sin(2.0 * np.pi * freq_hz * t)
+    # 32767 rather than 32768: the positive peak of an int16 is one short
+    # of the negative one, so scaling by 32768 can wrap a full-scale tone.
+    samples = np.round(tone * 32767.0).astype(np.int16)
+
+    if not stereo:
+        return samples
+
+    interleaved = np.zeros(samples.size * 2, dtype=np.int16)
+    interleaved[0::2] = samples
+    return interleaved
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("output", help="path of the WAV file to write")
+    p.add_argument("--freq", type=float, default=60.0,
+                   help="tone frequency in Hz (default: 60)")
+    p.add_argument("--seconds", type=float, default=3.0,
+                   help="length in seconds (default: 3)")
+    p.add_argument("--rate", type=int, default=8000,
+                   help="sample rate in Hz (default: 8000)")
+    p.add_argument("--amplitude", type=float, default=0.5,
+                   help="amplitude from 0 to 1 (default: 0.5)")
+    p.add_argument("--stereo", action="store_true",
+                   help="write the tone on the left channel and silence on the right")
+    args = p.parse_args()
+
+    if args.freq <= 0:
+        p.error("--freq must be greater than 0")
+    if args.seconds <= 0:
+        p.error("--seconds must be greater than 0")
+    if args.rate <= 0:
+        p.error("--rate must be greater than 0")
+    if not 0.0 < args.amplitude <= 1.0:
+        p.error("--amplitude must be greater than 0 and at most 1")
+    if args.freq >= args.rate / 2.0:
+        p.error(f"--freq must be below the Nyquist limit ({args.rate / 2.0:.1f} Hz)")
+
+    channels = 2 if args.stereo else 1
+    samples = make_tone(args.freq, args.seconds, args.rate, args.amplitude,
+                        stereo=args.stereo)
+
+    with wave.open(args.output, "wb") as w:
+        w.setnchannels(channels)
+        w.setsampwidth(2)
+        w.setframerate(args.rate)
+        w.writeframes(samples.tobytes())
+
+    print(f"{args.output}: {args.freq:.2f} Hz, {args.seconds:g} s, "
+          f"{args.rate} Hz, {'stereo' if args.stereo else 'mono'}")
+
+
+if __name__ == "__main__":
+    main()

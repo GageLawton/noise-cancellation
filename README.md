@@ -135,11 +135,12 @@ differently, and the Format check log shows the exact change it wants.
 
 ## CI
 
-Four jobs run on every push and PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+Five jobs run on every push and PR ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
 
 | Job | What it catches |
 |---|---|
 | Host tests | Logic regressions in portable code — fast, no hardware |
+| Python tools | Breakage in the offline analysis scripts under `tools/` |
 | Coverage | Untested new code, via an 85% line-coverage gate |
 | Firmware build | ESP-IDF component/driver mistakes host tests can't see |
 | Format check | Style drift |
@@ -252,6 +253,21 @@ python tools/analyze.py baseline.wav cancelled.wav --freq 60
 
 Run `python3 tools/analyze.py --help` (or `python` on Windows) to see all
 options.
+
+No recordings yet? [`tools/make_tone.py`](tools/make_tone.py) writes a
+16-bit WAV with a tone of a known frequency, which is enough to exercise
+the analysis on a laptop:
+
+```bash
+python3 tools/make_tone.py tone.wav --freq 120
+python3 tools/analyze.py tone.wav          # target frequency: 120.00 Hz
+```
+
+The tools have their own tests, run by the **Python tools** CI job:
+
+```bash
+python -m pytest tools
+```
 
 ## Configuration
 

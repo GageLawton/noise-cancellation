@@ -28,6 +28,22 @@ jobs:
         working-directory: test/build
         run: ctest --output-on-failure
 
+  python-tools:
+    name: Python tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r tools/requirements.txt
+
+      - name: Test
+        run: python -m pytest tools
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
