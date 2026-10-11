@@ -43,7 +43,8 @@ From the repo root, before you commit:
 macOS and Linux:
 
 ```bash
-clang-format -i $(find components main test -path test/build -prune -o \( -name '*.cpp' -o -name '*.hpp' \) -print)
+./scripts/format.sh
+# Use ./scripts/format.sh --check to verify formatting without changing files.
 ```
 
 Windows (PowerShell):

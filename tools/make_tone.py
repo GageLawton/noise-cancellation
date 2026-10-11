@@ -23,7 +23,7 @@ def make_tone(freq_hz, seconds, rate, amplitude, stereo=False, noise=0.0):
     right: that asymmetry makes it obvious when a reader mixes channels
     together or treats the interleaved stream as mono.
     """
-    t = np.arange(int(round(seconds * rate)), dtype=np.float64) / rate
+    t = np.arange(round(seconds * rate), dtype=np.float64) / rate
     tone = amplitude * np.sin(2.0 * np.pi * freq_hz * t)
     if noise > 0.0:
         rng = np.random.default_rng(0)
