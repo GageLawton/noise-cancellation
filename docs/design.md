@@ -317,7 +317,7 @@ anc/
 ├── CMakeLists.txt              # ESP-IDF top-level build
 ├── sdkconfig.defaults
 ├── components/
-│   ├── hal/                    # I2S, GPIO sync. Only layer touching ESP-IDF drivers
+│   ├── anc_hal/                # I2S, GPIO sync. Only layer touching ESP-IDF drivers
 │   ├── dsp_core/               # FirFilter, FxlmsCanceller, RefGenerator
 │   ├── alignment/              # Reconstructor, Pll, DriftDetector, AlignmentEngine
 │   ├── calibration/            # probe generation, impulse response → FIR estimate
@@ -341,7 +341,7 @@ Host build compiles `dsp_core`, `alignment`, and `calibration` only — those th
 
 ### 10.3 Core Types
 ```cpp
-// hal/ — virtual only here, so tests can substitute FakeAudioIo
+// anc_hal/ — virtual only here, so tests can substitute FakeAudioIo
 class IAudioIo {
 public:
     virtual ~IAudioIo() = default;
@@ -350,7 +350,7 @@ public:
 };
 class I2sAudioIo final : public IAudioIo { /* ESP-IDF I2S + DMA */ };
 
-// hal/ — lock-free single-producer/single-consumer, fixed capacity
+// anc_hal/ — lock-free single-producer/single-consumer, fixed capacity
 template <typename T, size_t Capacity>
 class SpscRingBuffer {
 public:
