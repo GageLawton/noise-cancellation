@@ -13,8 +13,7 @@ void test_zero_sample_is_zero() {
 }
 
 void test_minimum_sample_is_minus_one() {
-    TEST_ASSERT_FLOAT_WITHIN(1e-6f, -1.0f,
-                             anc::micSampleToFloat(INT32_MIN));
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, -1.0f, anc::micSampleToFloat(INT32_MIN));
 }
 
 void test_maximum_sample_is_just_below_one() {
@@ -23,8 +22,7 @@ void test_maximum_sample_is_just_below_one() {
 }
 
 void test_unused_low_bits_are_ignored() {
-    TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f,
-                             anc::micSampleToFloat(0x000000FF));
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, anc::micSampleToFloat(0x000000FF));
 }
 
 }  // namespace
