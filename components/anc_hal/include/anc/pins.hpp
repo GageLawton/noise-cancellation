@@ -1,6 +1,8 @@
-// Pin definitions for the ANC hardware abstraction layer.
-// They're plain "int" on purpose so the host test can include the file without ESP-IDF.
 #pragma once
+
+// ESP32-S3 pin map for the I2S mic (INMP441) and amp (MAX98357A).
+// Both parts share one I2S bus, so change the wiring here and nowhere else.
+// Plain int, not gpio_num_t, so host tests can include this file without ESP-IDF.
 
 namespace anc {
 
