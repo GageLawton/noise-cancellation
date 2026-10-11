@@ -85,11 +85,11 @@ void test_rejects_correlation_threshold_out_of_range() {
 
     c.correlationThreshold = 0.5f;
     TEST_ASSERT_TRUE(c.validate());
-
 }
 
 void test_rejects_non_positive_drift_rate() {
-    // maxDriftRateHzPerSec must be greater that 0. Check that 0.0 and -1.0 are rejected.
+    // maxDriftRateHzPerSec must be greater than 0. Check that 0.0 and -1.0 are
+    // rejected.
     NodeConfig c = NodeConfig::defaults();
 
     c.maxDriftRateHzPerSec = 0.0f;
