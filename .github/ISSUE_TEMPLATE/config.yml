@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Looking for something to work on?
+    url: https://github.com/GageLawton/noise-cancellation/labels/good%20first%20issue
+    about: Browse beginner-friendly issues. Comment on one to claim it.
+  - name: How to contribute
+    url: https://github.com/GageLawton/noise-cancellation/blob/main/CONTRIBUTING.md
+    about: Setup, running the tests and opening a pull request.
