@@ -9,7 +9,6 @@ import wave
 
 import numpy as np
 import pytest
-
 from analyze import dominant_peak, narrowband_rms, read_wav
 from make_tone import make_tone
 
