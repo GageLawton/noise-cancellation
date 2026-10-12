@@ -91,8 +91,22 @@ std::size_t I2sAudioIo::readBlock(float* buf, std::size_t n) {
     return count;
 }
 
-std::size_t I2sAudioIo::writeBlock(const float*, std::size_t) {
-    return 0;
+std::size_t I2sAudioIo::writeBlock(const float* buf, std::size_t n) {
+    if (n > kMaxBlock)
+        n = kMaxBlock;
+
+    for (std::size_t i = 0; i < n; ++i) {
+        rawOut_[i] = floatToAmpSample(buf[i]);
+    }
+
+    std::size_t bytesWritten = 0;
+    esp_err_t err = i2s_channel_write(tx_, rawOut_, n * sizeof(int32_t), &bytesWritten,
+                                      portMAX_DELAY);
+    if (err != ESP_OK) {
+        ESP_LOGE(kTag, "amp write failed: %s", esp_err_to_name(err));
+        return 0;
+    }
+    return bytesWritten / sizeof(int32_t);
 }
 
 }  // namespace anc
