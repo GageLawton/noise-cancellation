@@ -4,6 +4,7 @@
 #include "driver/i2s_std.h"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "sdkconfig.h"
 
 // Breadboard wiring (see hardware/breadboard-wiring guide).
@@ -33,6 +34,74 @@ static float mic_sample_to_float(int32_t raw)
 {
     return (float)(raw >> 8) / 8388608.0f;
 }
+
+#ifdef CONFIG_BRINGUP_TONE_ENABLE
+// Step 4: tone out. A separate FreeRTOS task keeps the speaker fed while app_main
+// keeps reading the mic, so both directions of the bus run at the same time.
+#define TONE_BLOCK_SAMPLES 256
+#define TONE_AMPLITUDE     (CONFIG_BRINGUP_TONE_AMPLITUDE_PCT / 100.0f)
+
+#ifdef CONFIG_BRINGUP_TONE_CYCLE
+// 0 means silence, so each run also records the mic with the speaker quiet.
+static const int tone_cycle_hz[] = {0, 60, 120, 180, 440};
+#define TONE_CYCLE_STEPS (sizeof(tone_cycle_hz) / sizeof(tone_cycle_hz[0]))
+#define TONE_STEP_BLOCKS (CONFIG_BRINGUP_TONE_STEP_SECONDS * SAMPLE_RATE_HZ / TONE_BLOCK_SAMPLES)
+#endif
+
+static int32_t tone_block[TONE_BLOCK_SAMPLES];
+
+// The tone frequency currently playing, so the mic loop can label its readings.
+// One task writes it and the other only reads it, and a 32-bit write is atomic
+// on the ESP32, so volatile is enough here.
+static volatile int current_tone_hz = 0;
+
+static void tone_task(void *arg)
+{
+    i2s_chan_handle_t tx = (i2s_chan_handle_t)arg;
+
+    // Phase runs from 0 to 1 once per sine cycle. Keeping it between blocks makes
+    // the wave continuous, so there's no click every time a new block starts.
+    float phase = 0.0f;
+#ifdef CONFIG_BRINGUP_TONE_CYCLE
+    size_t step = 0;
+    int blocks_in_step = 0;
+    current_tone_hz = tone_cycle_hz[0];
+#else
+    current_tone_hz = CONFIG_BRINGUP_TONE_FREQ_HZ;
+#endif
+
+    while (true) {
+        const int hz = current_tone_hz;
+        const float phase_step = (float)hz / SAMPLE_RATE_HZ;
+        for (int i = 0; i < TONE_BLOCK_SAMPLES; i++) {
+            float x = TONE_AMPLITUDE * sinf(2.0f * (float)M_PI * phase);
+            // Float -1..+1 to the amp's 32-bit format: scale by the largest int32.
+            tone_block[i] = (int32_t)(x * 2147483647.0f);
+            phase += phase_step;
+            if (phase >= 1.0f) {
+                phase -= 1.0f;
+            }
+        }
+
+        // Blocks until the DMA has room, which paces this loop at exactly the sample rate.
+        size_t written = 0;
+        ESP_ERROR_CHECK(i2s_channel_write(tx, tone_block, sizeof(tone_block), &written, portMAX_DELAY));
+
+#ifdef CONFIG_BRINGUP_TONE_CYCLE
+        if (++blocks_in_step >= TONE_STEP_BLOCKS) {
+            blocks_in_step = 0;
+            step = (step + 1) % TONE_CYCLE_STEPS;
+            current_tone_hz = tone_cycle_hz[step];
+            if (current_tone_hz == 0) {
+                printf("--- tone: off ---\n");
+            } else {
+                printf("--- tone: %d Hz ---\n", current_tone_hz);
+            }
+        }
+#endif
+    }
+}
+#endif  // CONFIG_BRINGUP_TONE_ENABLE
 
 extern "C" {
 
@@ -77,6 +146,11 @@ extern "C" {
         printf("Bring-up start! I2S running at %d Hz, noise floor set to %d dBFS\n",
                SAMPLE_RATE_HZ, NOISE_FLOOR_DBFS);
 
+#ifdef CONFIG_BRINGUP_TONE_ENABLE
+        // Start the speaker task. 4 KB of stack is plenty since its buffer is static.
+        xTaskCreate(tone_task, "tone", 4096, tx, 5, NULL);
+#endif
+
         // Step 3: mic level meter. app_main never returns from here.
         double sum_squares = 0.0;
         int blocks = 0;
@@ -111,8 +185,13 @@ extern "C" {
                 double dbfs = (rms > 1e-9) ? 20.0 * log10(rms) : -180.0;  // log10(0) is -infinity
                 // raw[0] is one untouched sample, for debugging wiring: all zeros or a value
                 // that never changes means no data is arriving on GPIO7.
-                printf("mic: %7.1f dBFS  (%+5.1f dB above floor)  (raw[0]=0x%08lx)\n",
-                       dbfs, dbfs - NOISE_FLOOR_DBFS, (unsigned long)mic_block[0]);
+#ifdef CONFIG_BRINGUP_TONE_ENABLE
+                const int tone_hz = current_tone_hz;
+#else
+                const int tone_hz = 0;
+#endif
+                printf("mic: %7.1f dBFS  (%+5.1f dB above floor)  tone %3d Hz  (raw[0]=0x%08lx)\n",
+                       dbfs, dbfs - NOISE_FLOOR_DBFS, tone_hz, (unsigned long)mic_block[0]);
                 sum_squares = 0.0;
                 blocks = 0;
             }
