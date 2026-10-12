@@ -46,6 +46,7 @@ target_include_directories(anc_portable PUBLIC
     ${ANC_ROOT}/components/dsp_core/include
     ${ANC_ROOT}/components/alignment/include
     ${ANC_ROOT}/components/calibration/include
+    ${ANC_ROOT}/components/transport/include
 )
 
 enable_testing()
