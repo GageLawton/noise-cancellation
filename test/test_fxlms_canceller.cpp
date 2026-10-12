@@ -1,5 +1,9 @@
+#include <cmath>
+#include <cstdio>
+
 #include "anc/fxlms_canceller.hpp"
 #include "anc/ref_generator.hpp"
+#include "fakes/simulated_room.hpp"
 #include "unity.h"
 
 void setUp() {}
@@ -64,6 +68,38 @@ void test_one_sample_delay_path_gives_previous_reference() {
     }
 }
 
+void test_cancels_simulated_hum() {
+    float path[16] = {};
+    path[5]        = 0.6f;
+    path[6]        = -0.2f;
+
+    canc = anc::FxlmsCanceller(kFs);
+    canc.setSecondaryPath(path, 16);
+    canc.setToneFrequency(60.0f);
+    canc.setNormalizedStepSize(0.1f);
+
+    SimulatedRoom room(kFs, path, 16);
+    room.addHum(60.0f, 0.5f, 0.7f);
+
+    constexpr int kTotal = 16000;  // 2 s
+    constexpr int kTail  = 2000;
+    double tailSquares   = 0.0;
+    for (int i = 0; i < kTotal; ++i) {
+        const float y   = canc.nextOutput();
+        const float mic = room.step(y);
+        canc.update(mic);
+        if (i >= kTotal - kTail) {
+            tailSquares += static_cast<double>(mic) * mic;
+        }
+    }
+
+    const float humRms      = 0.5f / std::sqrt(2.0f);
+    const float residualRms = static_cast<float>(std::sqrt(tailSquares / kTail));
+    const float reductionDb = 20.0f * std::log10(humRms / residualRms);
+    std::printf("cancellation: %.1f dB\n", static_cast<double>(reductionDb));
+    TEST_ASSERT_TRUE(reductionDb >= 40.0f);
+}
+
 }  // namespace
 
 int main() {
@@ -71,5 +107,6 @@ int main() {
     RUN_TEST(test_zero_weights_give_silence);
     RUN_TEST(test_unit_path_passes_reference_through);
     RUN_TEST(test_one_sample_delay_path_gives_previous_reference);
+    RUN_TEST(test_cancels_simulated_hum);
     return UNITY_END();
 }
