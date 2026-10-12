@@ -12,19 +12,22 @@ Hardware setup: [`docs/hardware.md`](docs/hardware.md).
 
 ## Status
 
-**M1 complete.** The device boots, loads its JSON config from flash, runs
-the state machine, and reports status at 1Hz. No audio or DSP yet — see
-the milestone table in the design doc (section 10.4).
+The device boots, loads its JSON config from flash, runs the state machine
+and reports status at 1 Hz. The building blocks for M2 to M6 (I2S driver,
+test tone, calibration, FxLMS canceller and frequency alignment) exist and
+are tested on a laptop; wiring them into the running firmware is in
+progress. The [roadmap (#138)](https://github.com/GageLawton/noise-cancellation/issues/138)
+lists what's left, issue by issue.
 
 | M | Goal | Status |
 |---|---|---|
 | M0 | Both build targets compile | done |
 | M1 | Boot path, config, tasks, telemetry | done |
-| M2 | Audio plumbing end-to-end | next |
-| M3 | Output path proven (fixed sine) | |
-| M4 | Calibration (probe → SecondaryPath) | |
-| M5 | Cancellation (FxLMS) | |
-| M6 | Alignment (reconstruct, PLL, drift) | |
+| M2 | Audio plumbing end-to-end | in progress |
+| M3 | Output path proven (fixed sine) | building blocks done |
+| M4 | Calibration (probe → SecondaryPath) | building blocks done |
+| M5 | Cancellation (FxLMS) | building blocks done |
+| M6 | Alignment (reconstruct, PLL, drift) | building blocks done |
 | M7 | Multi-node prep (sync line) | |
 
 ## Get involved
@@ -304,12 +307,20 @@ require recompiling.
     "initial_freq_hz": [60.0],
     "max_drift_rate_hz_per_sec": 2.0,
     "watch_correlation_threshold": 0.15
+  },
+  "output": {
+    "ceiling": 0.8,
+    "test_tone_hz": 440.0,
+    "test_tone_amplitude": 0.1
   }
 }
 ```
 
 `initial_freq_hz` is a starting hint for the frequency tracker, not a
 fixed target — the PLL walks to whatever tone actually dominates.
+
+[`docs/config.md`](docs/config.md) explains every setting, its default and
+its allowed values.
 
 Anything the config file omits falls back to its compiled-in default, and
 a config that fails validation is rejected in favour of defaults, so the
@@ -320,7 +331,8 @@ device always boots into a working state.
 ```
 components/
   anc_hal/       I2S, GPIO sync. Only layer touching ESP-IDF drivers
-  dsp_core/      FirFilter, FxlmsCanceller, RefGenerator
+  dsp_core/      FirFilter, FxlmsCanceller, RefGenerator, and the block
+                 processors FilterTask runs (silence, tone, canceller)
   alignment/     Reconstructor, Pll, DriftDetector
   calibration/   probe generation, impulse response → FIR estimate
   config/        JSON load/save, NodeConfig
@@ -329,6 +341,8 @@ components/
   transport/     wired GPIO sync shim
 main/            app_main.cpp
 test/            host build + Unity tests
+  fakes/         fakes and the simulated room for host tests
+docs/            design, config, hardware and glossary pages
 tools/           offline analysis scripts
 scripts/         dev helpers (coverage)
 ```
