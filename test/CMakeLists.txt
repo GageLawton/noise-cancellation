@@ -11,8 +11,9 @@ option(ANC_COVERAGE "Build with gcov coverage instrumentation" OFF)
 
 # Match the device build's constraints so host tests exercise the same
 # code shape (design doc 10.1). Scoped to C++ only -- Unity is C, and
-# -fno-rtti is not a valid C flag.
-set(ANC_CXX_FLAGS -Wall -Wextra -fno-exceptions -fno-rtti)
+# -fno-rtti is not a valid C flag. -Werror keeps the tests warning-free:
+# a new warning fails CI instead of quietly piling up.
+set(ANC_CXX_FLAGS -Wall -Wextra -Werror -fno-exceptions -fno-rtti)
 set(ANC_LINK_FLAGS "")
 
 if(ANC_COVERAGE)
