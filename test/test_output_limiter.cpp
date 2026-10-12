@@ -1,42 +1,53 @@
+#include "anc/output_limiter.hpp"
 #include "unity.h"
-#include "output_limiter.h"
 
-// Clipped needs to be false
+void setUp() {}
+void tearDown() {}
+
 namespace {
 
-void test_output_limiter() {
+// Every test uses the ceiling from issue #29.
+constexpr float kCeiling = 0.8f;
 
-    // Clamps x to [-ceiling, ceiling]. Sets clipped to true when it had to.
-    inline float limitOutput(float x, float ceiling, bool& clipped);
-    
-    // 0.5f passes and clipped is false
-    bool clipped = false;
-    float result = limitOutput(0.5f, 1.0f, clipped);
-    TEST_ASSERT_TRUE(result == 0.5f && clipped == false);
-    // result should be 0.5f and clipped should be false
-    
-    // 1.2f gives 0.f and clipped is true
-    clipped = true;
-    result = limitOutput(1.2f, 1.0f, clipped);
-    TEST_ASSERT_TRUE(result == 1.0f && clipped == true);
-    
-    // -3.0f gives 0.f and clipped is true
-    clipped = true;
-    result = limitOutput(-3.0f, 1.0f, clipped);
-    TEST_ASSERT_TRUE(result == -1.0f && clipped == true);
-    
-    // 1.0f gives 0.8f and clipped is false
-    clipped = false;
-    result = limitOutput(1.0f, 0.8f, clipped);
-    TEST_ASSERT_TRUE(result == 0.8f && clipped == false);
-    // 1.0f gives 0.8f and clipped is false
+void test_value_inside_ceiling_passes_through() {
+    bool clipped = true;  // Start true so the test proves limitOutput clears it.
+    float result = anc::limitOutput(0.5f, kCeiling, clipped);
 
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, result);
+    TEST_ASSERT_FALSE(clipped);
 }
 
-} // namespace
+void test_value_above_ceiling_is_clamped() {
+    bool clipped = false;  // Start false so the test proves limitOutput sets it.
+    float result = anc::limitOutput(1.2f, kCeiling, clipped);
+
+    TEST_ASSERT_EQUAL_FLOAT(0.8f, result);
+    TEST_ASSERT_TRUE(clipped);
+}
+
+void test_value_below_negative_ceiling_is_clamped() {
+    bool clipped = false;
+    float result = anc::limitOutput(-3.0f, kCeiling, clipped);
+
+    TEST_ASSERT_EQUAL_FLOAT(-0.8f, result);
+    TEST_ASSERT_TRUE(clipped);
+}
+
+void test_value_exactly_at_ceiling_is_not_clipped() {
+    bool clipped = true;
+    float result = anc::limitOutput(0.8f, kCeiling, clipped);
+
+    TEST_ASSERT_EQUAL_FLOAT(0.8f, result);
+    TEST_ASSERT_FALSE(clipped);
+}
+
+}  // namespace
 
 int main() {
     UNITY_BEGIN();
-    test_output_limiter();
+    RUN_TEST(test_value_inside_ceiling_passes_through);
+    RUN_TEST(test_value_above_ceiling_is_clamped);
+    RUN_TEST(test_value_below_negative_ceiling_is_clamped);
+    RUN_TEST(test_value_exactly_at_ceiling_is_not_clipped);
     return UNITY_END();
 }
