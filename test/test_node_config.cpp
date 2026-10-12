@@ -185,6 +185,52 @@ void test_rejects_calibration_timing_out_of_range() {
     TEST_ASSERT_TRUE(c.validate());
 }
 
+void test_output_defaults() {
+    NodeConfig c = NodeConfig::defaults();
+    TEST_ASSERT_EQUAL_FLOAT(0.8f, c.outputCeiling);
+    TEST_ASSERT_EQUAL_FLOAT(440.0f, c.testToneHz);
+    TEST_ASSERT_EQUAL_FLOAT(0.1f, c.testToneAmplitude);
+}
+
+void test_rejects_output_ceiling_out_of_range() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.outputCeiling = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.outputCeiling = 1.01f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.outputCeiling = 1.0f;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
+void test_rejects_test_tone_out_of_range() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.testToneHz = anc::kSampleRateHz / 2.0f;  // exactly Nyquist
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.testToneHz = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.testToneHz = 3999.0f;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
+void test_rejects_test_tone_louder_than_ceiling() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.testToneAmplitude = c.outputCeiling + 0.01f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.testToneAmplitude = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+
+    c.testToneAmplitude = c.outputCeiling;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
 }  // namespace
 
 int main() {
@@ -204,5 +250,9 @@ int main() {
     RUN_TEST(test_rejects_empty_node_name);
     RUN_TEST(test_rejects_secondary_path_taps_out_of_range);
     RUN_TEST(test_rejects_calibration_timing_out_of_range);
+    RUN_TEST(test_output_defaults);
+    RUN_TEST(test_rejects_output_ceiling_out_of_range);
+    RUN_TEST(test_rejects_test_tone_out_of_range);
+    RUN_TEST(test_rejects_test_tone_louder_than_ceiling);
     return UNITY_END();
 }
