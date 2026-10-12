@@ -27,6 +27,10 @@ NodeConfig NodeConfig::defaults() {
     c.maxDriftRateHzPerSec      = 2.0f;
     c.watchCorrelationThreshold = 0.15f;
 
+    c.outputCeiling     = 0.8f;
+    c.testToneHz        = 440.0f;
+    c.testToneAmplitude = 0.1f;
+
     return c;
 }
 
@@ -67,6 +71,14 @@ bool NodeConfig::validate() const {
         watchCorrelationThreshold >= correlationThreshold) {
         return false;
     }
+
+    if (outputCeiling <= 0.0f || outputCeiling > 1.0f)
+        return false;
+    if (testToneHz <= 0.0f || testToneHz >= kSampleRateHz / 2.0f)
+        return false;
+    // The tone must fit under the limiter, or the limiter would clip it.
+    if (testToneAmplitude <= 0.0f || testToneAmplitude > outputCeiling)
+        return false;
 
     return true;
 }
