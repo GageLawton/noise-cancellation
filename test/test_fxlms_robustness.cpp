@@ -27,7 +27,7 @@ float runRoom(const float* estimate, float mu) {
 
     canc = anc::FxlmsCanceller(kFs);
     canc.setSecondaryPath(estimate, kTaps);
-    canc.setToneFrequency(60.0f);
+    canc.setToneFrequency(0, 60.0f);
     canc.setNormalizedStepSize(mu);
 
     SimulatedRoom room(kFs, truePath, kTaps);
@@ -67,7 +67,7 @@ void test_zero_step_size_never_adapts() {
 
     canc = anc::FxlmsCanceller(kFs);
     canc.setSecondaryPath(path, 7);
-    canc.setToneFrequency(60.0f);
+    canc.setToneFrequency(0, 60.0f);
     canc.setNormalizedStepSize(0.0f);
     for (int i = 0; i < 1000; ++i) {
         canc.update(room.step(canc.nextOutput()));

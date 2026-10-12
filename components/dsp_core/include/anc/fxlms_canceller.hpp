@@ -9,68 +9,110 @@
 
 namespace anc {
 
-// Cancels one hum tone with FxLMS (design doc 6.1). It keeps two weights,
-// one for a sine and one for a cosine at the hum frequency, and outputs
-//   y = w0 * sin + w1 * cos.
-// Learning needs the "filtered reference": the same sine and cosine
-// passed through the measured speaker-to-mic path.
+// Cancels up to kMaxTones hum tones with FxLMS (design doc 6.1). For each
+// tone it keeps two weights, one for a sine and one for a cosine at that
+// tone's frequency; the output is the sum over tones of
+//   y_t = w[2t] * sin_t + w[2t+1] * cos_t.
+// Learning needs the "filtered reference": each sine and cosine passed
+// through the measured speaker-to-mic path.
 class FxlmsCanceller {
 public:
     static constexpr std::size_t kMaxPathTaps = 1024;
+    static constexpr std::size_t kTones       = kMaxTones;
 
-    explicit FxlmsCanceller(float sampleRateHz) : ref_(sampleRateHz) {}
-
-    // Sets the secondary path estimate used for both filtered references.
-    void setSecondaryPath(const float* coeffs, std::size_t n) {
-        pathSin_.setCoefficients(coeffs, n);
-        pathCos_.setCoefficients(coeffs, n);
+    explicit FxlmsCanceller(float sampleRateHz)
+        : ref_{RefGenerator(sampleRateHz), RefGenerator(sampleRateHz),
+               RefGenerator(sampleRateHz), RefGenerator(sampleRateHz)} {
+        static_assert(kTones == 4, "update the ref_ initializer to match kMaxTones");
     }
 
-    void setToneFrequency(float freqHz) { ref_.setFrequency(freqHz); }
+    // Sets the secondary path estimate used for every filtered reference.
+    void setSecondaryPath(const float* coeffs, std::size_t n) {
+        for (std::size_t t = 0; t < kTones; ++t) {
+            tones_[t].pathSin.setCoefficients(coeffs, n);
+            tones_[t].pathCos.setCoefficients(coeffs, n);
+        }
+    }
+
+    // Number of tones in use, clamped to [1, kMaxTones].
+    void setNumTones(std::size_t n) {
+        numTones_ = n < 1 ? 1 : (n > kTones ? kTones : n);
+    }
+    std::size_t numTones() const { return numTones_; }
+
+    // Out-of-range tone indices are ignored.
+    void setToneFrequency(std::size_t toneIdx, float freqHz) {
+        if (toneIdx < kTones) {
+            ref_[toneIdx].setFrequency(freqHz);
+        }
+    }
+
     void setNormalizedStepSize(float mu) { mu_ = mu; }
 
-    // Advances the reference by one sample, updates the filtered
-    // reference, and returns the speaker sample.
+    // Advances every active reference by one sample, updates the filtered
+    // references, and returns the speaker sample.
     float nextOutput() {
-        float s = 0.0f;
-        float c = 0.0f;
-        ref_.next(s, c);
-        filteredSin_ = pathSin_.process(s);
-        filteredCos_ = pathCos_.process(c);
-        return w_[0] * s + w_[1] * c;
+        float y = 0.0f;
+        for (std::size_t t = 0; t < numTones_; ++t) {
+            float s = 0.0f;
+            float c = 0.0f;
+            ref_[t].next(s, c);
+            Tone& tone       = tones_[t];
+            tone.filteredSin = tone.pathSin.process(s);
+            tone.filteredCos = tone.pathCos.process(c);
+            y += w_[2 * t] * s + w_[2 * t + 1] * c;
+        }
+        return y;
     }
 
-    // Learning step: normalized LMS on the filtered reference. Call once
+    // Learning step: normalized LMS on the filtered references. Call once
     // per sample, after nextOutput(), with the mic sample that heard it.
     //
     // The sign is MINUS: the mic hears hum + speaker, so the weights must
     // move to make the speaker oppose the hum. Design doc 6.1 writes "+"
     // because it treats the output as already inverted.
     void update(float mic) {
-        const float squares = filteredSin_ * filteredSin_ + filteredCos_ * filteredCos_;
+        float squares = 0.0f;
+        for (std::size_t t = 0; t < numTones_; ++t) {
+            squares += tones_[t].filteredSin * tones_[t].filteredSin +
+                       tones_[t].filteredCos * tones_[t].filteredCos;
+        }
         // The average starts at 0, so on its own it would underestimate the
         // power for the first ~100 samples and take huge steps. The
         // instantaneous value is a floor until the average catches up.
         const float average = power_.add(squares);
         const float p       = average > squares ? average : squares;
         const float step    = mu_ / (kNlmsEpsilon + p) * mic;
-        w_[0] -= step * filteredSin_;
-        w_[1] -= step * filteredCos_;
+        for (std::size_t t = 0; t < numTones_; ++t) {
+            w_[2 * t] -= step * tones_[t].filteredSin;
+            w_[2 * t + 1] -= step * tones_[t].filteredCos;
+        }
     }
 
-    float filteredSin() const { return filteredSin_; }
-    float filteredCos() const { return filteredCos_; }
+    float filteredSin(std::size_t toneIdx = 0) const {
+        return tones_[toneIdx].filteredSin;
+    }
+    float filteredCos(std::size_t toneIdx = 0) const {
+        return tones_[toneIdx].filteredCos;
+    }
+    // Weight i of 2 * kMaxTones: tone i / 2, sine if i is even, cosine if odd.
     float weight(std::size_t i) const { return w_[i]; }
 
 private:
-    RefGenerator ref_;
-    FirFilter<kMaxPathTaps> pathSin_;
-    FirFilter<kMaxPathTaps> pathCos_;
-    RunningPower power_{0.01f};  // average of filteredSin^2 + filteredCos^2
-    float mu_ = 0.0f;
-    float w_[2]{};
-    float filteredSin_ = 0.0f;
-    float filteredCos_ = 0.0f;
+    struct Tone {
+        FirFilter<kMaxPathTaps> pathSin;
+        FirFilter<kMaxPathTaps> pathCos;
+        float filteredSin = 0.0f;
+        float filteredCos = 0.0f;
+    };
+
+    RefGenerator ref_[kTones];
+    Tone tones_[kTones];
+    // One shared average of every filtered sin^2 and cos^2.
+    RunningPower power_{0.01f};
+    std::size_t numTones_ = 1;
+    float mu_             = 0.0f;
+    float w_[2 * kTones]{};
 };
 
 }  // namespace anc
