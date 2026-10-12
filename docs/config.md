@@ -1,14 +1,14 @@
 # Configuration reference
 
 The firmware reads `/cfg/node.json` from its LittleFS flash filesystem at boot.
-The file contains four JSON sections. Omitted settings keep their compiled-in
+The file contains five JSON sections. Omitted settings keep their compiled-in
 defaults. A missing, unparseable, or invalid configuration is replaced with the
 defaults in memory; writing those defaults back to flash is best-effort.
 
 This page follows [the JSON reader](../components/config/config_store.cpp),
 [defaults and validation](../components/config/node_config.cpp), and
 [field definitions](../components/config/include/anc/node_config.hpp).
-Audio, calibration, and tracking descriptions explain the intended role of
+Audio, calibration, tracking, and output descriptions explain the intended role of
 each setting; those operations are not all implemented in the current firmware.
 
 ## identity
@@ -43,12 +43,25 @@ each setting; those operations are not all implemented in the current firmware.
 | `max_drift_rate_hz_per_sec` | `2.0` | Greater than 0; validation sets no upper bound. | Limits how quickly a tracked frequency is allowed to change. |
 | `watch_correlation_threshold` | `0.15` | Greater than 0 and strictly less than `calibration.correlation_threshold`. | Earlier warning threshold intended to mark frequency tracking as low-confidence. |
 
+## output
+
+These settings shape what is sent to the amplifier. Files written by older
+firmware have no `output` section; the defaults are used.
+
+| Key | Default | Allowed values | What it does |
+|---|---|---|---|
+| `ceiling` | `0.8` | Greater than 0 and at most 1.0. | Limiter ceiling: the largest output level (as a fraction of full scale) allowed to reach the amplifier. Protects the speaker and keeps the amp out of clipping. |
+| `test_tone_hz` | `440.0` | Greater than 0 and less than 4000 Hz (half the 8000 Hz sample rate); endpoints excluded. | Frequency of the M3 test tone. |
+| `test_tone_amplitude` | `0.1` | Greater than 0 and at most `ceiling`. | Level of the M3 test tone, as a fraction of full scale. |
+
 ## Rules involving multiple settings
 
 - `backstop_interval_ms >= cooldown_ms`: the maximum calibration interval cannot
   be shorter than the minimum wait. Equality is accepted.
 - `watch_correlation_threshold < correlation_threshold`: the warning must occur
   before the recalibration trigger. Equality is rejected.
+- `test_tone_amplitude <= ceiling`: the test tone can't be louder than the
+  limiter allows. Equality is accepted.
 - Only active tone slots are validated. Unused slots can remain zero.
 
 ## Current reader behavior
