@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include "anc/pll.hpp"
+#include "anc/probe_generator.hpp"
 #include "unity.h"
 
 void setUp() {}
@@ -64,6 +65,44 @@ void test_ignores_sudden_jump() {
     TEST_ASSERT_TRUE(pll.frequencyHz() <= 62.0f);
 }
 
+void test_locks_onto_clean_tone() {
+    anc::Pll pll(60.0f, kFs);
+    TEST_ASSERT_FALSE(pll.locked());
+    for (int n = 0; n < 2 * 8000; ++n) {
+        pll.update(tone(60.0, 0.5f, n));
+    }
+    TEST_ASSERT_TRUE(pll.locked());
+}
+
+void test_does_not_lock_on_noise() {
+    anc::Pll pll(60.0f, kFs);
+    anc::ProbeGenerator noise(3, 0.3f);
+    for (int n = 0; n < 2 * 8000; ++n) {
+        pll.update(noise.next());
+    }
+    TEST_ASSERT_FALSE(pll.locked());
+}
+
+void test_stays_locked_with_noise_on_top() {
+    anc::Pll pll(60.0f, kFs);
+    anc::ProbeGenerator noise(3, 0.2f);
+    for (int n = 0; n < 3 * 8000; ++n) {
+        pll.update(tone(60.0, 0.5f, n) + noise.next());
+    }
+    TEST_ASSERT_TRUE(pll.locked());
+}
+
+void test_losing_the_tone_unlocks() {
+    anc::Pll pll(60.0f, kFs);
+    for (int n = 0; n < 2 * 8000; ++n) {
+        pll.update(tone(60.0, 0.5f, n));
+    }
+    for (int n = 0; n < 8000; ++n) {
+        pll.update(0.0f);
+    }
+    TEST_ASSERT_FALSE(pll.locked());
+}
+
 }  // namespace
 
 int main() {
@@ -72,5 +111,9 @@ int main() {
     RUN_TEST(test_stays_on_frequency);
     RUN_TEST(test_follows_slow_drift);
     RUN_TEST(test_ignores_sudden_jump);
+    RUN_TEST(test_locks_onto_clean_tone);
+    RUN_TEST(test_does_not_lock_on_noise);
+    RUN_TEST(test_stays_locked_with_noise_on_top);
+    RUN_TEST(test_losing_the_tone_unlocks);
     return UNITY_END();
 }
