@@ -1,0 +1,53 @@
+menu "I2S bring-up"
+
+    config BRINGUP_SAMPLE_RATE_HZ
+        int "I2S sample rate (Hz)"
+        range 8000 48000
+        default 16000
+        help
+            Sample rate for both the mic and the speaker. Issue #52 asks to try 8000
+            to see whether the mic still gives sensible readings at that rate.
+
+    config BRINGUP_NOISE_FLOOR_DBFS
+        int "Quiet-room noise floor (dBFS)"
+        range -120 0
+        default -80
+        help
+            The mic level measured in a quiet room. -80 is a placeholder until it is
+            measured on the real board. The meter prints how far each reading is
+            above this value, so a clap shows up as a big positive number.
+
+    config BRINGUP_TONE_ENABLE
+        bool "Play a test tone on the speaker"
+        default y
+
+    config BRINGUP_TONE_CYCLE
+        bool "Cycle through the issue #52 test tones"
+        depends on BRINGUP_TONE_ENABLE
+        default y
+        help
+            Steps through silence, 60, 120, 180 and 440 Hz, a few seconds each, and
+            labels every mic reading with the tone that was playing. One run gives
+            all the Step 5 measurements. Turn this off to play one fixed tone instead.
+
+    config BRINGUP_TONE_STEP_SECONDS
+        int "Seconds per tone when cycling"
+        depends on BRINGUP_TONE_CYCLE
+        range 1 60
+        default 5
+
+    config BRINGUP_TONE_FREQ_HZ
+        int "Fixed tone frequency (Hz)"
+        depends on BRINGUP_TONE_ENABLE && !BRINGUP_TONE_CYCLE
+        range 20 4000
+        default 440
+
+    config BRINGUP_TONE_AMPLITUDE_PCT
+        int "Tone amplitude (% of full scale)"
+        depends on BRINGUP_TONE_ENABLE
+        range 1 50
+        default 10
+        help
+            Keep this low at first. 10% is about -20 dBFS.
+
+endmenu
