@@ -116,6 +116,7 @@ extern "C" {
         ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx, &rx));
 
         // Part 2: describe how the bus talks. Three pieces, in the order the struct declares them.
+        // The clock and pins are shared; the slot mask is set per direction below.
         i2s_std_config_t std_cfg = {
             // Sample rate. With two 32-bit slots per frame, BCLK = 16000 * 64 = 1.024 MHz.
             .clk_cfg  = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE_HZ),
@@ -131,14 +132,20 @@ extern "C" {
                 .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
             },
         };
-        // The mic's L/R pin is tied to GND, so it only talks in the left slot.
-        // On the ESP32-S3 the macro above defaults to both slots, so set it explicitly.
-        std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
+        // The two directions differ only in which slots they use.
+        // Speaker: on the ESP32-S3, mono with BOTH slots copies each sample into the left
+        // and the right slot. Many MAX98357A boards play (L+R)/2, so with only the left
+        // slot filled the tone would come out at half amplitude (about 6 dB quieter).
+        i2s_std_config_t tx_cfg = std_cfg;
+        tx_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_BOTH;
+        // Mic: its L/R pin is tied to GND, so it only talks in the left slot.
+        i2s_std_config_t rx_cfg = std_cfg;
+        rx_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
 
-        // Part 3: apply the same config to both handles, then start them.
+        // Part 3: apply the configs to both handles, then start them.
         // Init both before enabling either, because they share one clock.
-        ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx, &std_cfg));
-        ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx, &std_cfg));
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx, &tx_cfg));
+        ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx, &rx_cfg));
         ESP_ERROR_CHECK(i2s_channel_enable(tx));
         ESP_ERROR_CHECK(i2s_channel_enable(rx));
 
