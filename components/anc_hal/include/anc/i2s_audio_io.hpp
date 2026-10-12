@@ -25,6 +25,7 @@ private:
     i2s_chan_handle_t rx_ = nullptr;
     int32_t rawIn_[kMaxBlock]{};
     int32_t rawOut_[kMaxBlock]{};
+    bool readErrorLogged_ = false;
 };
 
 }  // namespace anc
