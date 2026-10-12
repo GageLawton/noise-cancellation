@@ -1,0 +1,9 @@
+# Check GitHub Actions monthly and open update PRs, keeping maintenance noise low.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "ci"
