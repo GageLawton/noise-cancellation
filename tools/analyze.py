@@ -70,7 +70,11 @@ def main():
                    help="target frequency in Hz (default: auto-detect)")
     p.add_argument("--bandwidth", type=float, default=2.0,
                    help="half-width of the measurement band in Hz (default: 2.0)")
+    p.add_argument("--top", type=int, default=8,
+                   help="how many peaks to list in survey mode (default: 8)")
     args = p.parse_args()
+    if args.top <= 0:
+        p.error("--top must be greater than 0")
     if args.bandwidth <= 0:
         p.error("--bandwidth must be greater than 0")
 
@@ -82,11 +86,11 @@ def main():
     if not args.cancelled:
         # Survey mode: just report what is in the room. This is step one
         # of the project -- measure before picking a tone to cancel.
-        print("\ntop peaks in baseline:")
         spectrum = np.abs(np.fft.rfft(base * np.hanning(len(base))))
         freqs = np.fft.rfftfreq(len(base), 1.0 / rate)
         band = (freqs >= 20) & (freqs <= 1000)
-        idx = np.argsort(spectrum[band])[-8:][::-1]
+        idx = np.argsort(spectrum[band])[-args.top:][::-1]
+        print(f"\ntop {len(idx)} peaks in baseline:")
         for i in idx:
             print(f"  {freqs[band][i]:7.2f} Hz  {spectrum[band][i]:.4f}")
         return

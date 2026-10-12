@@ -27,6 +27,14 @@ the milestone table in the design doc (section 10.4).
 | M6 | Alignment (reconstruct, PLL, drift) | |
 | M7 | Multi-node prep (sync line) | |
 
+## Get involved
+
+- Start with a [good first issue](https://github.com/GageLawton/noise-cancellation/labels/good%20first%20issue).
+- Most tasks need only a laptop: browse [no hardware needed](https://github.com/GageLawton/noise-cancellation/labels/no%20hardware%20needed) issues.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and pull request instructions.
+- Want to build the board? Follow the [hardware guide](docs/hardware.md).
+- Comment on an issue to claim it before starting work.
+
 ## Setting up your computer
 
 You need Git, CMake 3.20+, a C++17 compiler (GCC or Clang), and
