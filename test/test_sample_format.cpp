@@ -25,6 +25,25 @@ void test_unused_low_bits_are_ignored() {
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, anc::micSampleToFloat(0x000000FF));
 }
 
+void test_speaker_zero_is_zero() {
+    TEST_ASSERT_EQUAL_INT16(0, anc::floatToSpeakerSample(0.0f));
+}
+
+void test_speaker_endpoints_preserve_sign() {
+    TEST_ASSERT_EQUAL_INT16(32767, anc::floatToSpeakerSample(1.0f));
+    TEST_ASSERT_EQUAL_INT16(-32767, anc::floatToSpeakerSample(-1.0f));
+}
+
+void test_speaker_out_of_range_samples_are_clamped() {
+    TEST_ASSERT_EQUAL_INT16(32767, anc::floatToSpeakerSample(2.0f));
+    TEST_ASSERT_EQUAL_INT16(-32767, anc::floatToSpeakerSample(-5.0f));
+}
+
+void test_speaker_half_amplitude_is_rounded() {
+    TEST_ASSERT_EQUAL_INT16(16384, anc::floatToSpeakerSample(0.5f));
+    TEST_ASSERT_EQUAL_INT16(-16384, anc::floatToSpeakerSample(-0.5f));
+}
+
 }  // namespace
 
 int main() {
@@ -33,5 +52,9 @@ int main() {
     RUN_TEST(test_minimum_sample_is_minus_one);
     RUN_TEST(test_maximum_sample_is_just_below_one);
     RUN_TEST(test_unused_low_bits_are_ignored);
+    RUN_TEST(test_speaker_zero_is_zero);
+    RUN_TEST(test_speaker_endpoints_preserve_sign);
+    RUN_TEST(test_speaker_out_of_range_samples_are_clamped);
+    RUN_TEST(test_speaker_half_amplitude_is_rounded);
     return UNITY_END();
 }
