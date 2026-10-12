@@ -17,11 +17,24 @@ public:
     Pll(float initialFreqHz, float sampleRateHz)
         : freqHz_(initialFreqHz), sampleRateHz_(sampleRateHz) {}
 
+    // Self-lock guard (design doc 6.1): real hums drift slowly, so the
+    // frequency may change by at most hzPerSec. A sudden jump is more
+    // likely the loop grabbing our own speaker than a real change.
+    // No limit until this is called.
+    void setMaxDriftRate(float hzPerSec) {
+        maxStepHz_ = hzPerSec / sampleRateHz_;
+        limited_   = true;
+    }
+
     void update(float x) {
         i_ += kAlpha * (x * std::cos(theta_) - i_);
         q_ += kAlpha * (x * std::sin(theta_) - q_);
-        err_ = std::atan2(i_, q_);
-        freqHz_ += kKi * err_;
+        err_         = std::atan2(i_, q_);
+        float stepHz = kKi * err_;
+        if (limited_) {
+            stepHz = std::fmin(std::fmax(stepHz, -maxStepHz_), maxStepHz_);
+        }
+        freqHz_ += stepHz;
         theta_ += kTwoPi * (freqHz_ + kKp * err_) / sampleRateHz_;
         theta_ = std::fmod(theta_, kTwoPi);
         if (theta_ < 0.0f) {
@@ -40,10 +53,12 @@ private:
 
     float freqHz_;
     float sampleRateHz_;
-    float theta_ = 0.0f;  // oscillator phase, kept in [0, 2*pi)
-    float i_     = 0.0f;
-    float q_     = 0.0f;
-    float err_   = 0.0f;
+    float theta_     = 0.0f;  // oscillator phase, kept in [0, 2*pi)
+    float i_         = 0.0f;
+    float q_         = 0.0f;
+    float err_       = 0.0f;
+    bool limited_    = false;
+    float maxStepHz_ = 0.0f;  // per-sample frequency limit, when limited_
 };
 
 }  // namespace anc
