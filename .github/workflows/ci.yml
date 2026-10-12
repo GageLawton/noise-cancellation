@@ -16,7 +16,7 @@ jobs:
     name: Host tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure
         run: cmake -B test/build -S test -DCMAKE_BUILD_TYPE=Debug
@@ -32,7 +32,7 @@ jobs:
     name: Python tools
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
@@ -51,7 +51,7 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install gcovr
         run: pipx install gcovr
@@ -92,7 +92,7 @@ jobs:
     name: Firmware build (ESP32-S3)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Builds the real ESP-IDF target. This is the only job that
       # catches component-dependency and driver-API mistakes -- host
@@ -108,7 +108,7 @@ jobs:
     name: Format check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install clang-format
         run: sudo apt-get update && sudo apt-get install -y clang-format
