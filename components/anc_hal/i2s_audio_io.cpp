@@ -1,6 +1,8 @@
 #include "anc/i2s_audio_io.hpp"
 
+#include "anc/sample_format.hpp"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
 
 namespace anc {
 namespace {
@@ -65,8 +67,28 @@ bool I2sAudioIo::init(const I2sSettings& settings) {
     return true;
 }
 
-std::size_t I2sAudioIo::readBlock(float*, std::size_t) {
-    return 0;
+std::size_t I2sAudioIo::readBlock(float* buf, std::size_t n) {
+    if (n > kMaxBlock)
+        n = kMaxBlock;
+
+    // Blocking is correct here: it paces the audio task at the sample rate.
+    std::size_t bytesRead = 0;
+    esp_err_t err =
+        i2s_channel_read(rx_, rawIn_, n * sizeof(int32_t), &bytesRead, portMAX_DELAY);
+    if (err != ESP_OK) {
+        // Log only the first failure, so a dead mic doesn't flood the console.
+        if (!readErrorLogged_) {
+            ESP_LOGE(kTag, "mic read failed: %s", esp_err_to_name(err));
+            readErrorLogged_ = true;
+        }
+        return 0;
+    }
+
+    const std::size_t count = bytesRead / sizeof(int32_t);
+    for (std::size_t i = 0; i < count; ++i) {
+        buf[i] = micSampleToFloat(rawIn_[i]);
+    }
+    return count;
 }
 
 std::size_t I2sAudioIo::writeBlock(const float*, std::size_t) {
