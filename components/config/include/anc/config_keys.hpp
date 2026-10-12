@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -115,6 +116,32 @@ inline bool applySetting(NodeConfig& cfg, const char* key, const char* value) {
         return false;
     cfg = candidate;
     return true;
+}
+
+// Writes the current value of key into out: "%.3f" for floats, "%u" for
+// integers. Returns false for an unknown key, or if out is too small (it
+// then holds as much as fits).
+inline bool formatSetting(const NodeConfig& cfg, const char* key, char* out,
+                          std::size_t outLen) {
+    using namespace config_keys;
+    if (key == nullptr || out == nullptr || outLen == 0)
+        return false;
+
+    int written = -1;
+    if (const auto* f = find(kFloatFields, key)) {
+        written =
+            std::snprintf(out, outLen, "%.3f", static_cast<double>(cfg.*(f->member)));
+    } else if (const auto* f16 = find(kU16Fields, key)) {
+        written =
+            std::snprintf(out, outLen, "%u", static_cast<unsigned>(cfg.*(f16->member)));
+    } else if (const auto* f32 = find(kU32Fields, key)) {
+        written = std::snprintf(out, outLen, "%lu",
+                                static_cast<unsigned long>(cfg.*(f32->member)));
+    } else {
+        out[0] = '\0';
+        return false;
+    }
+    return written >= 0 && static_cast<std::size_t>(written) < outLen;
 }
 
 }  // namespace anc
