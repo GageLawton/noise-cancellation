@@ -18,21 +18,41 @@ import sys
 SAMPLE_RATE_HZ = 8000
 
 # Matches anywhere in the line, so ESP-IDF prefixes like "I (1234) cal: "
-# are skipped. The value accepts signs, decimals and exponents.
-IR_LINE = re.compile(r"ir,(\d+),([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)")
+# are skipped. The \b stops words that merely end in "ir", like "fir,3,0.5",
+# from matching. The value accepts signs, decimals and exponents.
+IR_LINE = re.compile(r"\bir,(\d+),([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)")
 
 
-def parse_ir(lines):
-    """Return the impulse response taps found in lines, ordered by index.
+def parse_ir_taps(lines):
+    """Return {index: value} for every ``ir,<int>,<float>`` record in lines.
 
-    Lines that don't contain an ``ir,<int>,<float>`` record are ignored.
+    Other lines are ignored. A repeated index keeps the last value.
     """
     taps = {}
     for line in lines:
         match = IR_LINE.search(line)
         if match:
             taps[int(match.group(1))] = float(match.group(2))
-    return [taps[index] for index in sorted(taps)]
+    return taps
+
+
+def parse_ir(lines):
+    """Return the impulse response taps found in lines, ordered by index.
+
+    Each value sits at its own index, so a dropped serial line leaves a 0.0
+    gap instead of shifting every later tap (and the peak) down by one.
+    """
+    return taps_to_list(parse_ir_taps(lines))
+
+
+def taps_to_list(taps):
+    """Turn {index: value} into a list, filling missing indices with 0.0."""
+    return [taps.get(index, 0.0) for index in range(max(taps, default=-1) + 1)]
+
+
+def missing_indices(taps):
+    """Return the indices below the highest one that have no record."""
+    return [index for index in range(max(taps, default=-1) + 1) if index not in taps]
 
 
 def find_peak(taps):
@@ -49,12 +69,20 @@ def main():
 
     try:
         with open(args.path, encoding="utf-8", errors="replace") as log:
-            taps = parse_ir(log)
+            found = parse_ir_taps(log)
     except OSError as error:
         sys.exit(f"Cannot read log: {error}")
 
-    if not taps:
+    if not found:
         sys.exit("No ir,<index>,<value> lines found")
+
+    missing = missing_indices(found)
+    if missing:
+        print(
+            f"warning: {len(missing)} taps missing (set to 0): {missing}",
+            file=sys.stderr,
+        )
+    taps = taps_to_list(found)
 
     index, value = find_peak(taps)
     print(f"taps:  {len(taps)}")
