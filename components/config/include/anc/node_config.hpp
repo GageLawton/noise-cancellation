@@ -44,6 +44,11 @@ struct NodeConfig {
     float maxDriftRateHzPerSec;       // self-lock rate limit
     float watchCorrelationThreshold;  // low-confidence gate
 
+    // --- output ---
+    float outputCeiling;      // limiter ceiling, (0, 1]
+    float testToneHz;         // M3 test tone frequency
+    float testToneAmplitude;  // M3 test tone level, (0, outputCeiling]
+
     // Compiled-in fallback, used on first flash or if the JSON file
     // is missing/corrupt. Always writable back out as a fresh file.
     static NodeConfig defaults();

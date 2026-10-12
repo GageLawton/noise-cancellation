@@ -116,6 +116,13 @@ bool parseJson(const char* text, NodeConfig& cfg) {
         readFloat(trk, "watch_correlation_threshold", cfg.watchCorrelationThreshold);
     }
 
+    // Files from older firmware have no "output" section; the defaults stay.
+    if (const cJSON* out = cJSON_GetObjectItemCaseSensitive(root.get(), "output")) {
+        readFloat(out, "ceiling", cfg.outputCeiling);
+        readFloat(out, "test_tone_hz", cfg.testToneHz);
+        readFloat(out, "test_tone_amplitude", cfg.testToneAmplitude);
+    }
+
     return true;
 }
 
@@ -147,6 +154,11 @@ CjsonStringPtr serializeJson(const NodeConfig& cfg) {
     cJSON_AddNumberToObject(trk, "max_drift_rate_hz_per_sec", cfg.maxDriftRateHzPerSec);
     cJSON_AddNumberToObject(trk, "watch_correlation_threshold",
                             cfg.watchCorrelationThreshold);
+
+    cJSON* out = cJSON_AddObjectToObject(root.get(), "output");
+    cJSON_AddNumberToObject(out, "ceiling", cfg.outputCeiling);
+    cJSON_AddNumberToObject(out, "test_tone_hz", cfg.testToneHz);
+    cJSON_AddNumberToObject(out, "test_tone_amplitude", cfg.testToneAmplitude);
 
     return CjsonStringPtr(cJSON_Print(root.get()));
 }
