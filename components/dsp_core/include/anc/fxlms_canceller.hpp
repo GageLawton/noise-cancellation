@@ -3,7 +3,9 @@
 #include <cstddef>
 
 #include "anc/fir_filter.hpp"
+#include "anc/node_config.hpp"
 #include "anc/ref_generator.hpp"
+#include "anc/running_power.hpp"
 
 namespace anc {
 
@@ -38,8 +40,23 @@ public:
         return w_[0] * s + w_[1] * c;
     }
 
-    // Learning step: comes in the next issue (#114).
-    void update(float /*mic*/) {}
+    // Learning step: normalized LMS on the filtered reference. Call once
+    // per sample, after nextOutput(), with the mic sample that heard it.
+    //
+    // The sign is MINUS: the mic hears hum + speaker, so the weights must
+    // move to make the speaker oppose the hum. Design doc 6.1 writes "+"
+    // because it treats the output as already inverted.
+    void update(float mic) {
+        const float squares = filteredSin_ * filteredSin_ + filteredCos_ * filteredCos_;
+        // The average starts at 0, so on its own it would underestimate the
+        // power for the first ~100 samples and take huge steps. The
+        // instantaneous value is a floor until the average catches up.
+        const float average = power_.add(squares);
+        const float p       = average > squares ? average : squares;
+        const float step    = mu_ / (kNlmsEpsilon + p) * mic;
+        w_[0] -= step * filteredSin_;
+        w_[1] -= step * filteredCos_;
+    }
 
     float filteredSin() const { return filteredSin_; }
     float filteredCos() const { return filteredCos_; }
@@ -49,6 +66,7 @@ private:
     RefGenerator ref_;
     FirFilter<kMaxPathTaps> pathSin_;
     FirFilter<kMaxPathTaps> pathCos_;
+    RunningPower power_{0.01f};  // average of filteredSin^2 + filteredCos^2
     float mu_ = 0.0f;
     float w_[2]{};
     float filteredSin_ = 0.0f;

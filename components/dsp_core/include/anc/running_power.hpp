@@ -10,8 +10,12 @@ public:
     explicit RunningPower(float lambda) : lambda_(lambda) {}
 
     // Adds x^2 to the average and returns the new value.
-    float update(float x) {
-        power_ += lambda_ * (x * x - power_);
+    float update(float x) { return add(x * x); }
+
+    // Adds an already-squared value, for when the power is a sum of
+    // several squares (for example sin^2 + cos^2).
+    float add(float squared) {
+        power_ += lambda_ * (squared - power_);
         return power_;
     }
 
