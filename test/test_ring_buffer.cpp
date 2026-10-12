@@ -71,6 +71,36 @@ void test_size_tracks_contents() {
     TEST_ASSERT_EQUAL_UINT(1, rb.size());
 }
 
+void test_size_correct_after_wrap() {
+    using Rb = SpscRingBuffer<int, 4>;
+    Rb rb;
+    int out = -1;
+
+    // Move both indexes through a full wrap and leave them at index 3.
+    for (int i = 0; i < 7; ++i) {
+        TEST_ASSERT_TRUE(rb.push(i));
+        TEST_ASSERT_TRUE(rb.pop(out));
+        TEST_ASSERT_EQUAL_INT(i, out);
+    }
+    TEST_ASSERT_EQUAL_UINT(0, rb.size());
+
+    // Head wraps to index 1 while tail stays at index 3.
+    TEST_ASSERT_TRUE(rb.push(10));
+    TEST_ASSERT_TRUE(rb.push(11));
+    TEST_ASSERT_EQUAL_UINT(2, rb.size());
+
+    TEST_ASSERT_TRUE(rb.push(12));
+    TEST_ASSERT_EQUAL_UINT(Rb::capacity(), rb.size());
+    TEST_ASSERT_FALSE(rb.push(13));
+    TEST_ASSERT_EQUAL_UINT(Rb::capacity(), rb.size());
+
+    for (int i = 10; i <= 12; ++i) {
+        TEST_ASSERT_TRUE(rb.pop(out));
+        TEST_ASSERT_EQUAL_INT(i, out);
+        TEST_ASSERT_EQUAL_UINT(12 - i, rb.size());
+    }
+}
+
 void test_concurrent_producer_consumer() {
     // Approximates the real FilterTask -> AlignmentTask handoff: one
     // writer, one reader, no locks. Verifies no corruption or reordering.
@@ -113,6 +143,7 @@ int main() {
     RUN_TEST(test_push_fails_when_full_instead_of_blocking);
     RUN_TEST(test_wraps_around_repeatedly);
     RUN_TEST(test_size_tracks_contents);
+    RUN_TEST(test_size_correct_after_wrap);
     RUN_TEST(test_concurrent_producer_consumer);
     return UNITY_END();
 }

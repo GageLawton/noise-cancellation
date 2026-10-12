@@ -143,6 +143,48 @@ void test_rejects_dma_block_size_out_of_range() {
     TEST_ASSERT_TRUE(c.validate());
 }
 
+void test_rejects_empty_node_name() {
+    NodeConfig c  = NodeConfig::defaults();
+    c.nodeName[0] = '\0';
+    TEST_ASSERT_FALSE(c.validate());
+}
+
+void test_rejects_secondary_path_taps_out_of_range() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.secondaryPathTaps = 7;
+    TEST_ASSERT_FALSE(c.validate());
+    c.secondaryPathTaps = 1025;
+    TEST_ASSERT_FALSE(c.validate());
+    c.secondaryPathTaps = 8;
+    TEST_ASSERT_TRUE(c.validate());
+    c.secondaryPathTaps = 1024;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
+void test_rejects_calibration_timing_out_of_range() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.probeDurationMs = 49;
+    TEST_ASSERT_FALSE(c.validate());
+    c.probeDurationMs = 5001;
+    TEST_ASSERT_FALSE(c.validate());
+    c.probeDurationMs = 50;
+    TEST_ASSERT_TRUE(c.validate());
+    c.probeDurationMs = 5000;
+    TEST_ASSERT_TRUE(c.validate());
+
+    c                     = NodeConfig::defaults();
+    c.correlationWindowMs = 99;
+    TEST_ASSERT_FALSE(c.validate());
+    c.correlationWindowMs = 10001;
+    TEST_ASSERT_FALSE(c.validate());
+    c.correlationWindowMs = 100;
+    TEST_ASSERT_TRUE(c.validate());
+    c.correlationWindowMs = 10000;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
 }  // namespace
 
 int main() {
@@ -159,5 +201,8 @@ int main() {
     RUN_TEST(test_rejects_correlation_threshold_out_of_range);
     RUN_TEST(test_rejects_non_positive_drift_rate);
     RUN_TEST(test_rejects_dma_block_size_out_of_range);
+    RUN_TEST(test_rejects_empty_node_name);
+    RUN_TEST(test_rejects_secondary_path_taps_out_of_range);
+    RUN_TEST(test_rejects_calibration_timing_out_of_range);
     return UNITY_END();
 }
