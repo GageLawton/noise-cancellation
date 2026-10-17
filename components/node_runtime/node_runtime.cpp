@@ -173,11 +173,33 @@ void NodeRuntime::filterLoop() {
         IBlockProcessor* processor = processor_.load(std::memory_order_acquire);
         processor->processBlock(mic, out, kBlockSamples);
 
+        uint32_t dropped = 0;
         for (std::size_t i = 0; i < kBlockSamples; ++i) {
             // Can't fail: AudioIOTask keeps this ring near the lead.
             (void)outRing_.push(out[i]);
+            if (!alignRing_.push({mic[i], out[i]})) {
+                ++dropped;
+            }
+        }
+        if (dropped > 0) {
+            alignDrops_.fetch_add(dropped, std::memory_order_relaxed);
         }
         filterBlocks_.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+void NodeRuntime::alignmentLoop() {
+    for (;;) {
+        SamplePair pair{};
+        uint32_t received = 0;
+        while (alignRing_.pop(pair)) {
+            ++received;  // no processing yet; the engine arrives in M6
+        }
+        if (received > 0) {
+            alignSamples_.fetch_add(received, std::memory_order_relaxed);
+        }
+        // 5 ms is 40 pairs; the ring holds 2047.
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
@@ -190,7 +212,7 @@ void NodeRuntime::spawnTasks() {
                 NodeStatus s = self->status().read();
                 ESP_LOGI("telemetry",
                          "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
-                         "blocks=%u filter=%u under=%u",
+                         "blocks=%u filter=%u under=%u align=%u drop=%u",
                          toString(s.state), static_cast<int>(s.converged),
                          s.residualPower, s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
                          s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
@@ -200,7 +222,11 @@ void NodeRuntime::spawnTasks() {
                          static_cast<unsigned>(
                              self->filterBlocks_.load(std::memory_order_relaxed)),
                          static_cast<unsigned>(
-                             self->underruns_.load(std::memory_order_relaxed)));
+                             self->underruns_.load(std::memory_order_relaxed)),
+                         static_cast<unsigned>(
+                             self->alignSamples_.load(std::memory_order_relaxed)),
+                         static_cast<unsigned>(
+                             self->alignDrops_.load(std::memory_order_relaxed)));
                 vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
             }
         },
@@ -225,7 +251,13 @@ void NodeRuntime::spawnTasks() {
         [](void* arg) { static_cast<NodeRuntime*>(arg)->audioIoLoop(); }, "audio_io",
         4096, this, configMAX_PRIORITIES - 2, nullptr, kRealtimeCore);
 
-    ESP_LOGI(kTag, "tasks spawned (alignment pending M2)");
+    // AlignmentTask: frequency tracking and drift checks (M6). Core 1, so
+    // it can fall behind without touching the audio path.
+    xTaskCreatePinnedToCore(
+        [](void* arg) { static_cast<NodeRuntime*>(arg)->alignmentLoop(); }, "alignment",
+        4096, this, 3, nullptr, kNonRealtimeCore);
+
+    ESP_LOGI(kTag, "tasks spawned");
 }
 
 void NodeRuntime::start() {

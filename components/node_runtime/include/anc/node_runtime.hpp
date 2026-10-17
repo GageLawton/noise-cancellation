@@ -17,6 +17,13 @@
 
 namespace anc {
 
+// One mic sample and the speaker sample FilterTask produced alongside it,
+// for AlignmentTask.
+struct SamplePair {
+    float mic;
+    float synth;
+};
+
 // Owns the node's lifecycle: config, state machine, and task setup.
 //
 // Audio runs in its own task (see audioIoLoop). The DSP stages are filled
@@ -49,6 +56,10 @@ private:
     // FilterTask body: wait for a full mic block, run the active
     // IBlockProcessor on it, queue the result for the speaker, repeat.
     void filterLoop();
+
+    // AlignmentTask body: drain {mic, synth} pairs from FilterTask. Core 1,
+    // so nothing here can delay the audio path.
+    void alignmentLoop();
 
     // Samples per audio block: 4 ms at 8 kHz, the same as the DMA block.
     static constexpr std::size_t kBlockSamples = 32;
@@ -85,6 +96,13 @@ private:
     // Speaker samples AudioIOTask had to fill with 0 because FilterTask's
     // output wasn't ready.
     std::atomic<uint32_t> underruns_{0};
+
+    // FilterTask -> AlignmentTask (core 0 -> core 1). FilterTask never
+    // waits on core 1: when the ring is full, the pair is dropped and
+    // counted. 2047 usable slots, about 256 ms of audio.
+    SpscRingBuffer<SamplePair, 2048> alignRing_;
+    std::atomic<uint32_t> alignDrops_{0};
+    std::atomic<uint32_t> alignSamples_{0};  // pairs AlignmentTask received
     // AudioIOTask wakes FilterTask with a task notification after each mic
     // block, so FilterTask starts at once instead of polling.
     TaskHandle_t filterTask_ = nullptr;
