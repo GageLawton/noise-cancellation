@@ -48,6 +48,7 @@ target_include_directories(anc_portable PUBLIC
     ${ANC_ROOT}/components/alignment/include
     ${ANC_ROOT}/components/calibration/include
     ${ANC_ROOT}/components/transport/include
+    ${ANC_ROOT}/components/coordinator/include
 )
 
 enable_testing()
