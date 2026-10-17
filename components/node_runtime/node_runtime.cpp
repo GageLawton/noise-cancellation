@@ -324,7 +324,13 @@ void NodeRuntime::start() {
                 break;
 
             case NodeState::Fault:
-                ESP_LOGE(kTag, "fault -- muting output");
+                // Design doc 5.9: mute at once. Silence takes over at
+                // FilterTask's next block (no fade: whatever was playing
+                // may be the problem), and the gain drops to 0 so the next
+                // sound fades in. Calibration and RUN turn it back on.
+                processor_.store(&silence_, std::memory_order_release);
+                gainTarget_.store(0.0f, std::memory_order_relaxed);
+                ESP_LOGE(kTag, "fault -- output muted");
                 next = NodeState::SafeMute;
                 break;
 
