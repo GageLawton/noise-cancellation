@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "anc/block_processor.hpp"
 #include "anc/config_store.hpp"
@@ -12,6 +13,7 @@
 #include "anc/node_status.hpp"
 #include "anc/silence_processor.hpp"
 #include "anc/spsc_ring_buffer.hpp"
+#include "anc/tone_processor.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -90,6 +92,9 @@ private:
     // 128 ms of audio, so FilterTask can fall well behind before any drop.
     SpscRingBuffer<float, 1024> micRing_;
     SilenceProcessor silence_;
+    // M3 test tone. Built in doInitHal() once the config is loaded, since
+    // ToneProcessor takes its frequency and level in the constructor.
+    std::optional<ToneProcessor> tone_;
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
