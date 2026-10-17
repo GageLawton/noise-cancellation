@@ -109,7 +109,7 @@ NodeState NodeRuntime::doRun() {
 
 void NodeRuntime::audioIoLoop() {
     float mic[kBlockSamples];
-    float out[kBlockSamples] = {};  // silence until FilterTask exists
+    float out[kBlockSamples] = {};  // still silence; FilterTask's output comes next
 
     for (;;) {
         const std::size_t n = audio_.readBlock(mic, kBlockSamples);
@@ -119,8 +119,39 @@ void NodeRuntime::audioIoLoop() {
             vTaskDelay(1);
             continue;
         }
+        for (std::size_t i = 0; i < n; ++i) {
+            // A full ring means FilterTask is far behind. Drop the sample:
+            // this task must never wait.
+            (void)micRing_.push(mic[i]);
+        }
+        xTaskNotifyGive(filterTask_);
+
         audio_.writeBlock(out, n);
         blocksProcessed_.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+void NodeRuntime::filterLoop() {
+    float mic[kBlockSamples];
+    float out[kBlockSamples];
+
+    for (;;) {
+        // Collect exactly one block. When the ring runs dry, sleep until
+        // AudioIOTask's next notification. The timeout only matters if
+        // audio stops altogether.
+        std::size_t have = 0;
+        while (have < kBlockSamples) {
+            if (micRing_.pop(mic[have])) {
+                ++have;
+            } else {
+                ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
+            }
+        }
+
+        // Load the pointer once per block, so a swap never lands mid-block.
+        IBlockProcessor* processor = processor_.load(std::memory_order_acquire);
+        processor->processBlock(mic, out, kBlockSamples);
+        filterBlocks_.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -133,17 +164,26 @@ void NodeRuntime::spawnTasks() {
                 NodeStatus s = self->status().read();
                 ESP_LOGI("telemetry",
                          "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
-                         "blocks=%u",
+                         "blocks=%u filter=%u",
                          toString(s.state), static_cast<int>(s.converged),
                          s.residualPower, s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
                          s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
                          static_cast<unsigned>(s.clipEvents),
                          static_cast<unsigned>(
-                             self->blocksProcessed_.load(std::memory_order_relaxed)));
+                             self->blocksProcessed_.load(std::memory_order_relaxed)),
+                         static_cast<unsigned>(
+                             self->filterBlocks_.load(std::memory_order_relaxed)));
                 vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
             }
         },
         "telemetry", 4096, this, 2, nullptr, kNonRealtimeCore);
+
+    // FilterTask: the DSP. Same core as AudioIOTask, one priority below,
+    // so it runs in the gaps while AudioIOTask waits on I2S. Created first
+    // because AudioIOTask notifies it.
+    xTaskCreatePinnedToCore(
+        [](void* arg) { static_cast<NodeRuntime*>(arg)->filterLoop(); }, "filter", 4096,
+        this, configMAX_PRIORITIES - 3, &filterTask_, kRealtimeCore);
 
     // AudioIOTask: the only task that touches I2S. Real-time core, just
     // below the top priority (ESP-IDF's IPC tasks keep the very top).
@@ -151,7 +191,7 @@ void NodeRuntime::spawnTasks() {
         [](void* arg) { static_cast<NodeRuntime*>(arg)->audioIoLoop(); }, "audio_io",
         4096, this, configMAX_PRIORITIES - 2, nullptr, kRealtimeCore);
 
-    ESP_LOGI(kTag, "tasks spawned (filter/alignment pending M2)");
+    ESP_LOGI(kTag, "tasks spawned (alignment pending M2)");
 }
 
 void NodeRuntime::start() {
