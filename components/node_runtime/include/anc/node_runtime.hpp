@@ -41,17 +41,23 @@ private:
 
     void spawnTasks();
 
-    // AudioIOTask body: read a mic block, hand it to FilterTask, write a
-    // speaker block, repeat. The blocking I2S read paces it at the sample
-    // rate.
+    // AudioIOTask body: read a mic block, hand it to FilterTask, play the
+    // block FilterTask made earlier, repeat. The blocking I2S read paces
+    // it at the sample rate.
     void audioIoLoop();
 
     // FilterTask body: wait for a full mic block, run the active
-    // IBlockProcessor on it, repeat.
+    // IBlockProcessor on it, queue the result for the speaker, repeat.
     void filterLoop();
 
     // Samples per audio block: 4 ms at 8 kHz, the same as the DMA block.
     static constexpr std::size_t kBlockSamples = 32;
+
+    // How far FilterTask's output runs ahead of the speaker. Two blocks
+    // means FilterTask can finish a block up to 4 ms late without a gap.
+    // It is also part of the speaker-to-mic delay calibration measures,
+    // so AudioIOTask holds it fixed (see audioIoLoop).
+    static constexpr std::size_t kOutputLeadSamples = 2 * kBlockSamples;
 
     // Reads the factory-burned MAC and folds it into a 64-bit id.
     static uint64_t deriveNodeId();
@@ -74,6 +80,11 @@ private:
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
     std::atomic<uint32_t> filterBlocks_{0};  // blocks FilterTask processed
+    // Speaker samples, FilterTask -> AudioIOTask.
+    SpscRingBuffer<float, 1024> outRing_;
+    // Speaker samples AudioIOTask had to fill with 0 because FilterTask's
+    // output wasn't ready.
+    std::atomic<uint32_t> underruns_{0};
     // AudioIOTask wakes FilterTask with a task notification after each mic
     // block, so FilterTask starts at once instead of polling.
     TaskHandle_t filterTask_ = nullptr;
