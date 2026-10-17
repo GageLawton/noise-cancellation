@@ -57,6 +57,9 @@ private:
     // IBlockProcessor on it, queue the result for the speaker, repeat.
     void filterLoop();
 
+    // TelemetryTask body: one status line a second.
+    void telemetryLoop();
+
     // AlignmentTask body: drain {mic, synth} pairs from FilterTask. Core 1,
     // so nothing here can delay the audio path.
     void alignmentLoop();
@@ -91,6 +94,7 @@ private:
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
     std::atomic<uint32_t> filterBlocks_{0};  // blocks FilterTask processed
+    std::atomic<float> micDbfs_{-120.0f};    // level of the latest mic block
     // Speaker samples, FilterTask -> AudioIOTask.
     SpscRingBuffer<float, 1024> outRing_;
     // Speaker samples AudioIOTask had to fill with 0 because FilterTask's

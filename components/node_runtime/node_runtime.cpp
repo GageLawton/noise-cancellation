@@ -1,7 +1,10 @@
 #include "anc/node_runtime.hpp"
 
+#include <algorithm>
 #include <cstring>
 
+#include "anc/decibels.hpp"
+#include "anc/rms.hpp"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_timer.h"
@@ -19,6 +22,9 @@ constexpr BaseType_t kRealtimeCore    = 0;
 constexpr BaseType_t kNonRealtimeCore = 1;
 
 constexpr uint32_t kTelemetryPeriodMs = 1000;
+
+// The mic level meter falls 20 dB per second (250 blocks).
+constexpr float kMicMeterFallDbPerBlock = 20.0f / 250.0f;
 
 uint32_t nowMs() {
     return static_cast<uint32_t>(esp_timer_get_time() / 1000);
@@ -155,6 +161,7 @@ void NodeRuntime::audioIoLoop() {
 void NodeRuntime::filterLoop() {
     float mic[kBlockSamples];
     float out[kBlockSamples];
+    float micLevelDb = -120.0f;
 
     for (;;) {
         // Collect exactly one block. When the ring runs dry, sleep until
@@ -168,6 +175,13 @@ void NodeRuntime::filterLoop() {
                 ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(100));
             }
         }
+
+        // Level meter: rises at once, falls back slowly. Telemetry only
+        // looks once a second, so a plain per-block value would almost
+        // always miss a clap.
+        const float blockDb = amplitudeToDb(rms(mic, kBlockSamples));
+        micLevelDb          = std::max(blockDb, micLevelDb - kMicMeterFallDbPerBlock);
+        micDbfs_.store(micLevelDb, std::memory_order_relaxed);
 
         // Load the pointer once per block, so a swap never lands mid-block.
         IBlockProcessor* processor = processor_.load(std::memory_order_acquire);
@@ -203,34 +217,32 @@ void NodeRuntime::alignmentLoop() {
     }
 }
 
+void NodeRuntime::telemetryLoop() {
+    for (;;) {
+        NodeStatus s = status_.read();
+        ESP_LOGI(
+            "telemetry",
+            "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
+            "blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS",
+            toString(s.state), static_cast<int>(s.converged), s.residualPower,
+            s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
+            s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
+            static_cast<unsigned>(s.clipEvents),
+            static_cast<unsigned>(blocksProcessed_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(filterBlocks_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(underruns_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(alignSamples_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(alignDrops_.load(std::memory_order_relaxed)),
+            micDbfs_.load(std::memory_order_relaxed));
+        vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
+    }
+}
+
 void NodeRuntime::spawnTasks() {
     // TelemetryTask: 1Hz status over UART. Non-real-time, core 1.
     xTaskCreatePinnedToCore(
-        [](void* arg) {
-            auto* self = static_cast<NodeRuntime*>(arg);
-            for (;;) {
-                NodeStatus s = self->status().read();
-                ESP_LOGI("telemetry",
-                         "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
-                         "blocks=%u filter=%u under=%u align=%u drop=%u",
-                         toString(s.state), static_cast<int>(s.converged),
-                         s.residualPower, s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
-                         s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
-                         static_cast<unsigned>(s.clipEvents),
-                         static_cast<unsigned>(
-                             self->blocksProcessed_.load(std::memory_order_relaxed)),
-                         static_cast<unsigned>(
-                             self->filterBlocks_.load(std::memory_order_relaxed)),
-                         static_cast<unsigned>(
-                             self->underruns_.load(std::memory_order_relaxed)),
-                         static_cast<unsigned>(
-                             self->alignSamples_.load(std::memory_order_relaxed)),
-                         static_cast<unsigned>(
-                             self->alignDrops_.load(std::memory_order_relaxed)));
-                vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
-            }
-        },
-        "telemetry", 4096, this, 2, nullptr, kNonRealtimeCore);
+        [](void* arg) { static_cast<NodeRuntime*>(arg)->telemetryLoop(); }, "telemetry",
+        4096, this, 2, nullptr, kNonRealtimeCore);
 
     // Start the speaker ring at its lead, so the first blocks don't
     // underrun while FilterTask gets going.
