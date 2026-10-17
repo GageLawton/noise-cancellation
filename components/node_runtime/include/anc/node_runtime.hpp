@@ -7,6 +7,7 @@
 
 #include "anc/alignment_engine.hpp"
 #include "anc/block_processor.hpp"
+#include "anc/calibration_scheduler.hpp"
 #include "anc/config_store.hpp"
 #include "anc/divergence_detector.hpp"
 #include "anc/fxlms_canceller.hpp"
@@ -175,6 +176,15 @@ private:
     std::atomic<float> alignCorrelation_{0.0f};
     std::atomic<bool> alignLowConfidence_{false};
     std::atomic<bool> alignNeedsCalibration_{false};
+
+    // Where each tone starts after a calibration: the last locked
+    // frequency if there is one, else the config's hint. Set at the start
+    // of doCalibrate(), used for the tracker and the canceller.
+    float startFreqHz_[kMaxTones] = {};
+
+    // When to recheck the path: on drift, or after the backstop interval,
+    // but never within the cooldown. Rebuilt from the config in doBoot().
+    CalibrationScheduler scheduler_{0, 0};
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
