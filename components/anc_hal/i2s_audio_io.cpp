@@ -16,7 +16,11 @@ bool I2sAudioIo::init(const I2sSettings& settings) {
     // Opening both together makes them share BCLK and WS.
     i2s_chan_config_t chanCfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     chanCfg.dma_frame_num     = static_cast<uint32_t>(settings.dmaFrames);
-    esp_err_t err             = i2s_new_channel(&chanCfg, &tx_, &rx_);
+    chanCfg.dma_desc_num      = static_cast<uint32_t>(settings.dmaBuffers);
+    // If the audio task ever misses a block, the amp plays zeros instead of
+    // repeating the last buffer (which would buzz).
+    chanCfg.auto_clear = true;
+    esp_err_t err      = i2s_new_channel(&chanCfg, &tx_, &rx_);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "i2s_new_channel failed: %s", esp_err_to_name(err));
         return false;
@@ -62,8 +66,8 @@ bool I2sAudioIo::init(const I2sSettings& settings) {
         return false;
     }
 
-    ESP_LOGI(kTag, "I2S running at %d Hz, %d-sample DMA blocks", settings.sampleRateHz,
-             settings.dmaFrames);
+    ESP_LOGI(kTag, "I2S running at %d Hz, %d DMA buffers of %d samples",
+             settings.sampleRateHz, settings.dmaBuffers, settings.dmaFrames);
     return true;
 }
 
