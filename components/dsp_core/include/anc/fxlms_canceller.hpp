@@ -49,6 +49,26 @@ public:
 
     void setNormalizedStepSize(float mu) { mu_ = mu; }
 
+    // Forgets everything learned: weights, both power averages, the
+    // convergence count and the filtered-reference history. The path,
+    // tone count, frequencies and step size stay. Call it before starting
+    // again, for example after a fault, so old (maybe diverged) weights
+    // don't play the moment the canceller is switched back on.
+    void reset() {
+        for (float& w : w_) {
+            w = 0.0f;
+        }
+        for (Tone& tone : tones_) {
+            tone.pathSin.reset();
+            tone.pathCos.reset();
+            tone.filteredSin = 0.0f;
+            tone.filteredCos = 0.0f;
+        }
+        power_.reset();
+        residual_.reset();
+        belowCount_ = 0;
+    }
+
     // converged() needs residualPower() below this for kConvergedSamples
     // samples in a row.
     void setConvergedThreshold(float power) { convergedThreshold_ = power; }

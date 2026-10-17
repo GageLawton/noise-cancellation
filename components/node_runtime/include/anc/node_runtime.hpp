@@ -7,6 +7,8 @@
 
 #include "anc/block_processor.hpp"
 #include "anc/config_store.hpp"
+#include "anc/fxlms_canceller.hpp"
+#include "anc/fxlms_processor.hpp"
 #include "anc/gain_ramp.hpp"
 #include "anc/i2s_audio_io.hpp"
 #include "anc/node_config.hpp"
@@ -104,7 +106,9 @@ private:
     SpscRingBuffer<float, 1024> micRing_;
     SilenceProcessor silence_;
     // M3 test tone. Built in doInitHal() once the config is loaded, since
-    // ToneProcessor takes its frequency and level in the constructor.
+    // ToneProcessor takes its frequency and level in the constructor. RUN
+    // plays the canceller now; for a bench test, swap &fxlms_ for &*tone_
+    // in doRun().
     std::optional<ToneProcessor> tone_;
 
     // Output safety stage, after whatever processor runs: a fade, so
@@ -131,6 +135,13 @@ private:
     static constexpr std::size_t kMaxSecondaryPathTaps = 1024;
     float secondaryPath_[kMaxSecondaryPathTaps]{};
     std::size_t secondaryPathTaps_ = 0;
+
+    // M5: the hum canceller. The main task configures it only while it is
+    // not the active processor; FilterTask runs it and reports on it.
+    FxlmsCanceller canceller_{kSampleRateHz};
+    FxlmsProcessor fxlms_{canceller_};
+    std::atomic<float> residualDbfs_{-120.0f};  // what's left of the hum
+    std::atomic<bool> converged_{false};
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};

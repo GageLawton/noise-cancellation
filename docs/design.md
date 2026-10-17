@@ -136,7 +136,7 @@ typedef struct {
 
 typedef struct {
     uint16_t secondary_path_taps;   // SecondaryPath model length, default 256
-    float    normalized_step_size;  // NormalizedStepSize, dimensionless, starting value 0.1
+    float    normalized_step_size;  // NormalizedStepSize, dimensionless, starting value 0.005
     bool     trigger_recalibration;
 } NodeConfig;
 
@@ -163,7 +163,7 @@ typedef struct {
   },
   "dsp": {
     "secondary_path_taps": 256,
-    "normalized_step_size": 0.1,
+    "normalized_step_size": 0.005,
     "dma_block_samples": 32
   },
   "calibration": {
@@ -228,7 +228,7 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 | FilterWeights | Adaptive amplitude/phase weights FxLMS tunes each sample — this is "the filter" |
 | FilteredReference | ReferenceBasis passed through SecondaryPath, used only for the weight-update math, not for driving the speaker |
 | RunningPower | Exponential moving average of FilteredReference², updated every sample |
-| NormalizedStepSize | Dimensionless tuning constant, stability-bounded in (0, 2). **Starting value: 0.1** — conservative fraction of the stability ceiling; tune up (0.3–0.5) for faster convergence or down (0.05) if residual jitter appears |
+| NormalizedStepSize | Dimensionless tuning constant. Plain NLMS is stable in (0, 2), but the loop delay (Section 6.2) lowers the real ceiling a lot: with ~180 samples of delay, the canceller diverges a little above 0.015 in simulation (`test_fxlms_canceller`). **Starting value: 0.005**, about a third of that ceiling, which still settles in about a second; tune down if residual jitter appears, and only up with care |
 | ε | Small fixed regularization constant (e.g. 1e-6) preventing division blowup when RunningPower is near zero (startup, post-mute) |
 | MicSignal | The error signal FxLMS minimizes |
 

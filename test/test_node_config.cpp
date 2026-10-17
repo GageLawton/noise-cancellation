@@ -16,7 +16,7 @@ void test_defaults_are_valid() {
 void test_defaults_match_design_doc() {
     NodeConfig c = NodeConfig::defaults();
     TEST_ASSERT_EQUAL_UINT16(256, c.secondaryPathTaps);
-    TEST_ASSERT_EQUAL_FLOAT(0.1f, c.normalizedStepSize);
+    TEST_ASSERT_EQUAL_FLOAT(0.005f, c.normalizedStepSize);
     TEST_ASSERT_EQUAL_UINT16(32, c.dmaBlockSamples);
     TEST_ASSERT_EQUAL_UINT8(1, c.numTones);
     TEST_ASSERT_EQUAL_FLOAT(60.0f, c.initialFreqHz[0]);

@@ -199,7 +199,7 @@ I (xxx) runtime: ANC node starting
 I (xxx) config: littlefs mounted at /cfg
 I (xxx) config: no config file, writing defaults
 I (xxx) runtime: node id xxxxxxxxxxxx
-I (xxx) runtime: name=anc-node taps=256 mu=0.100 block=32 tones=1
+I (xxx) runtime: name=anc-node taps=256 mu=0.005 block=32 tones=1
 I (xxx) runtime: BOOT -> INIT_HAL
 I (xxx) telemetry: state=RUN conv=0 resid=0.000000 freq=60.00 lock=0 clip=0
 ```
@@ -293,7 +293,7 @@ require recompiling.
   "identity": { "node_name": "anc-node" },
   "dsp": {
     "secondary_path_taps": 256,
-    "normalized_step_size": 0.1,
+    "normalized_step_size": 0.005,
     "dma_block_samples": 32
   },
   "calibration": {

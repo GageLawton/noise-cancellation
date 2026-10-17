@@ -230,12 +230,21 @@ NodeState NodeRuntime::doCalibrate() {
 }
 
 NodeState NodeRuntime::doRun() {
-    // M3: prove the speaker path with a steady tone. M5 replaces this with
-    // the canceller.
-    processor_.store(&*tone_, std::memory_order_release);
-    gainTarget_.store(1.0f, std::memory_order_relaxed);  // fade in, no click
-    ESP_LOGI(kTag, "test tone %.1f Hz at %.2f", config_.testToneHz,
-             config_.testToneAmplitude);
+    // M5: cancel the configured hum. Start from scratch every time: after
+    // a fault the old weights may be the reason we stopped.
+    canceller_.reset();
+    canceller_.setSecondaryPath(secondaryPath_, secondaryPathTaps_);
+    canceller_.setNumTones(config_.numTones);
+    for (std::size_t t = 0; t < config_.numTones; ++t) {
+        canceller_.setToneFrequency(t, config_.initialFreqHz[t]);
+    }
+    canceller_.setNormalizedStepSize(config_.normalizedStepSize);
+
+    processor_.store(&fxlms_, std::memory_order_release);
+    gainTarget_.store(1.0f, std::memory_order_relaxed);
+    ESP_LOGI(kTag, "cancelling %u tone(s) from %.1f Hz, mu %.4f",
+             static_cast<unsigned>(config_.numTones), config_.initialFreqHz[0],
+             config_.normalizedStepSize);
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -337,6 +346,13 @@ void NodeRuntime::filterLoop() {
         if (processor == &probe_ && probe_.done()) {
             probeDone_.store(true, std::memory_order_release);
         }
+        if (processor == &fxlms_) {
+            residualDbfs_.store(amplitudeToDb(std::sqrt(canceller_.residualPower())),
+                                std::memory_order_relaxed);
+            converged_.store(canceller_.converged(), std::memory_order_relaxed);
+        } else {
+            converged_.store(false, std::memory_order_relaxed);
+        }
 
         uint32_t dropped = 0;
         for (std::size_t i = 0; i < kBlockSamples; ++i) {
@@ -373,9 +389,11 @@ void NodeRuntime::telemetryLoop() {
         NodeStatus s = status_.read();
         ESP_LOGI(
             "telemetry",
-            "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
+            "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d clip=%u "
             "blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS",
-            toString(s.state), static_cast<int>(s.converged), s.residualPower,
+            toString(s.state),
+            static_cast<int>(converged_.load(std::memory_order_relaxed)),
+            residualDbfs_.load(std::memory_order_relaxed),
             s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
             s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
             static_cast<unsigned>(clipEvents_.load(std::memory_order_relaxed)),
