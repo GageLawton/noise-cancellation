@@ -7,6 +7,7 @@
 
 #include "anc/block_processor.hpp"
 #include "anc/config_store.hpp"
+#include "anc/divergence_detector.hpp"
 #include "anc/fxlms_canceller.hpp"
 #include "anc/fxlms_processor.hpp"
 #include "anc/gain_ramp.hpp"
@@ -142,6 +143,14 @@ private:
     FxlmsProcessor fxlms_{canceller_};
     std::atomic<float> residualDbfs_{-120.0f};  // what's left of the hum
     std::atomic<bool> converged_{false};
+
+    // Safety net for the live canceller (design doc 5.9). FilterTask feeds
+    // it each mic block's power while the canceller runs and raises
+    // diverged_; doRun() answers with FAULT, which mutes and recalibrates.
+    // Trips above 0.25 (-6 dBFS RMS), or after 25 blocks (100 ms) of
+    // steady growth. Only FilterTask touches divergence_.
+    DivergenceDetector divergence_{0.25f, 25};
+    std::atomic<bool> diverged_{false};
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};

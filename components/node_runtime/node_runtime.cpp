@@ -240,15 +240,22 @@ NodeState NodeRuntime::doRun() {
     }
     canceller_.setNormalizedStepSize(config_.normalizedStepSize);
 
+    diverged_.store(false, std::memory_order_relaxed);
     processor_.store(&fxlms_, std::memory_order_release);
     gainTarget_.store(1.0f, std::memory_order_relaxed);
     ESP_LOGI(kTag, "cancelling %u tone(s) from %.1f Hz, mu %.4f",
              static_cast<unsigned>(config_.numTones), config_.initialFreqHz[0],
              config_.normalizedStepSize);
+
+    // Check often: a diverging canceller gets loud within a fraction of a
+    // second, and FAULT is what mutes it.
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (diverged_.exchange(false, std::memory_order_relaxed)) {
+            ESP_LOGE(kTag, "divergence detected");
+            return NodeState::Fault;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
-    return NodeState::Run;
 }
 
 void NodeRuntime::audioIoLoop() {
@@ -299,8 +306,9 @@ void NodeRuntime::audioIoLoop() {
 void NodeRuntime::filterLoop() {
     float mic[kBlockSamples];
     float out[kBlockSamples];
-    float micLevelDb = -120.0f;
-    float rampTarget = 0.0f;  // the target ramp_ is heading for
+    float micLevelDb                = -120.0f;
+    float rampTarget                = 0.0f;  // the target ramp_ is heading for
+    const IBlockProcessor* previous = nullptr;
 
     for (;;) {
         // Collect exactly one block. When the ring runs dry, sleep until
@@ -324,7 +332,22 @@ void NodeRuntime::filterLoop() {
 
         // Load the pointer once per block, so a swap never lands mid-block.
         IBlockProcessor* processor = processor_.load(std::memory_order_acquire);
+        if (processor != previous && processor == &fxlms_) {
+            divergence_.reset();  // a fresh start for a fresh canceller
+        }
+        previous = processor;
         processor->processBlock(mic, out, kBlockSamples);
+
+        // A NaN or infinity must never reach the limiter (every comparison
+        // with NaN is false, so it would pass straight through to the amp).
+        // From the canceller it means it has blown up.
+        bool nonFinite = false;
+        for (std::size_t i = 0; i < kBlockSamples; ++i) {
+            if (!std::isfinite(out[i])) {
+                out[i]    = 0.0f;
+                nonFinite = true;
+            }
+        }
 
         const float target = gainTarget_.load(std::memory_order_relaxed);
         if (target != rampTarget) {
@@ -350,6 +373,12 @@ void NodeRuntime::filterLoop() {
             residualDbfs_.store(amplitudeToDb(std::sqrt(canceller_.residualPower())),
                                 std::memory_order_relaxed);
             converged_.store(canceller_.converged(), std::memory_order_relaxed);
+
+            const float level = rms(mic, kBlockSamples);
+            divergence_.update(level * level);
+            if (divergence_.diverged() || nonFinite) {
+                diverged_.store(true, std::memory_order_relaxed);
+            }
         } else {
             converged_.store(false, std::memory_order_relaxed);
         }
