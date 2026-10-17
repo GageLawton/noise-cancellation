@@ -21,7 +21,7 @@ each setting; those operations are not all implemented in the current firmware.
 
 | Key | Default | Allowed values | What it does |
 |---|---|---|---|
-| `secondary_path_taps` | `128` | Whole number from 8 through 1024, inclusive. | Number of weights in the speaker-to-microphone model. At 8 kHz, 128 taps span 16 ms of sampled history. |
+| `secondary_path_taps` | `256` | Whole number from 8 through 1024, inclusive. | Number of weights in the speaker-to-microphone model. At 8 kHz, 256 taps span 32 ms, which has to cover the whole loop delay from output to mic (about 20 ms plus the acoustic distance; see [design doc 6.2](design.md#62-latency-budget)). Calibration warns if the measured peak lands in the last quarter. |
 | `normalized_step_size` | `0.1` | Greater than 0 and less than 2; endpoints excluded. | Learning-rate setting for the planned normalized adaptive filter. Larger adjustments are faster but can be less stable. |
 | `dma_block_samples` | `32` | Whole number from 8 through 256, inclusive. | Number of samples in an audio transfer batch. At 8 kHz, 32 samples represent 4 ms. |
 
