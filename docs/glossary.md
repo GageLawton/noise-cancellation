@@ -10,9 +10,29 @@ ANC reduces an unwanted sound by generating a controlled speaker signal that mak
 
 **BCLK** (bit clock) times the individual bits on an I2S audio link. **WS** (word select, also called LRCLK) marks the boundary between audio words or channels; together they let an I2S microphone or amplifier interpret the serial data stream. The project uses an I2S microphone and amplifier as described in the [hardware design](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#3-hardware-per-node).
 
+## Clipping
+
+Clipping happens when a signal asks for a level beyond what the output can produce, so the tops of the wave are cut flat. It sounds harsh and can stress the speaker, so the project caps every output sample at a set ceiling and counts each time that happens; see [`output_limiter.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/output_limiter.hpp).
+
+## Correlation (normalized)
+
+Normalized correlation measures how alike two signals are on a scale from -1 to +1: near 0 means unrelated, near +1 means the same shape, and near -1 means the same shape flipped. The project uses it to spot a copy of its own speaker output left in the estimated noise, which means the speaker-to-mic model is stale; see [`rolling_correlation.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/alignment/include/anc/rolling_correlation.hpp).
+
 ## dBFS
 
 Decibels relative to full scale measure a digital audio level against the largest value the format can represent. `0 dBFS` is full scale; ordinary signal levels are negative, so a level of `-6 dBFS` is lower than `-3 dBFS`.
+
+## DC offset
+
+A DC offset is a constant value added to every sample, so the signal sits above or below zero instead of centred on it. Microphones often have a small one; the project removes it with a filter that cuts frequencies below about 6 Hz while keeping a 60 Hz hum; see [`dc_blocker.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/dc_blocker.hpp).
+
+## Decimation and upsampling
+
+Decimation lowers the sample rate (for example 16 kHz to 8 kHz) by low-pass filtering and then keeping every second sample; upsampling raises it by inserting new samples and smoothing them. They let the I2S link run faster than the 8 kHz the DSP uses if the hardware needs it; see [`decimator2x.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/decimator2x.hpp) and [`upsampler2x.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/upsampler2x.hpp).
+
+## Divergence
+
+An adaptive filter diverges when its weights grow instead of settling, so it makes the noise louder rather than quieter. The project watches the leftover (residual) power and treats a hard limit or steady growth as divergence, so the node can mute and recover; see [`divergence_detector.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/divergence_detector.hpp).
 
 ## DMA
 
@@ -26,9 +46,21 @@ Filtered-x Least Mean Squares is the adaptive algorithm used to tune the cancell
 
 I2S is a synchronous serial interface for digital audio samples. It carries the sample data together with clock signals such as BCLK and WS; this project uses it for the MEMS microphone input and class-D amplifier output described in the [hardware design](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#3-hardware-per-node).
 
+## Impulse response
+
+An impulse response is what comes out of a system when a single click goes in: a list of values (taps) showing how much of the input arrives after each delay. The project measures the speaker-to-microphone impulse response by playing white noise, and its biggest tap gives the acoustic delay; see [`ir_estimator.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/calibration/include/anc/ir_estimator.hpp) and [`ir_analysis.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/calibration/include/anc/ir_analysis.hpp).
+
+## NLMS and step size
+
+Normalized Least Mean Squares (NLMS) is a way of updating adaptive filter weights a little after every sample, scaled by the signal's power so the update behaves the same at any volume. The step size (`normalized_step_size` in the config) sets how big each update is: larger learns faster but can become unstable; see [`fxlms_canceller.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/fxlms_canceller.hpp).
+
 ## Nyquist frequency
 
 The Nyquist frequency is half the sample rate and is the highest frequency that can be represented without aliasing in an ideally sampled signal. At the project's 8 kHz sample rate, the Nyquist frequency is 4 kHz.
+
+## Phase-locked loop (PLL)
+
+A phase-locked loop keeps its own oscillator in step with an incoming tone by measuring the phase difference and nudging its frequency to shrink it. The project uses one per tracked tone so the canceller follows a hum that drifts, such as mains frequency wander or a fan changing speed; see [`pll.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/alignment/include/anc/pll.hpp).
 
 ## Reference signal
 
