@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 
 #include "anc/alignment_engine.hpp"
@@ -84,6 +85,15 @@ private:
 
     // TelemetryTask body: one status line a second.
     void telemetryLoop();
+
+    // ConfigTask body: read typed lines from the serial console and answer
+    // them (get, set, save, recal, help).
+    void configLoop();
+    void handleCommand(const char* line);
+
+    // Takes the settings changed with `set` into config_. Main task only,
+    // at the start of a calibration.
+    void applyPendingConfig();
 
     // AlignmentTask body: drain {mic, synth} pairs from FilterTask. Core 1,
     // so nothing here can delay the audio path.
@@ -185,6 +195,18 @@ private:
     // When to recheck the path: on drift, or after the backstop interval,
     // but never within the cooldown. Rebuilt from the config in doBoot().
     CalibrationScheduler scheduler_{0, 0};
+
+    // Serial config. `set` edits pendingConfig_, never config_ (which other
+    // code reads without locks); the main task copies it over at the next
+    // calibration. configMutex_ guards pendingConfig_ between ConfigTask
+    // and the main task.
+    std::mutex configMutex_;
+    NodeConfig pendingConfig_{};
+    std::atomic<bool> configChanged_{false};
+    std::atomic<bool> recalRequested_{false};  // `recal`, or after `save`
+    // FilterTask's copy of output.ceiling, so a new value can arrive
+    // without FilterTask reading config_ while it's being replaced.
+    std::atomic<float> outputCeiling_{0.0f};
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};

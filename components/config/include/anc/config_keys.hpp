@@ -118,9 +118,9 @@ inline bool applySetting(NodeConfig& cfg, const char* key, const char* value) {
     return true;
 }
 
-// Writes the current value of key into out: "%.3f" for floats, "%u" for
-// integers. Returns false for an unknown key, or if out is too small (it
-// then holds as much as fits).
+// Writes the current value of key into out: "%g" for floats (so a small
+// step size like 0.0025 isn't rounded to 0.003), "%u" for integers. Returns false for
+// an unknown key, or if out is too small (it then holds as much as fits).
 inline bool formatSetting(const NodeConfig& cfg, const char* key, char* out,
                           std::size_t outLen) {
     using namespace config_keys;
@@ -130,7 +130,7 @@ inline bool formatSetting(const NodeConfig& cfg, const char* key, char* out,
     int written = -1;
     if (const auto* f = find(kFloatFields, key)) {
         written =
-            std::snprintf(out, outLen, "%.3f", static_cast<double>(cfg.*(f->member)));
+            std::snprintf(out, outLen, "%g", static_cast<double>(cfg.*(f->member)));
     } else if (const auto* f16 = find(kU16Fields, key)) {
         written =
             std::snprintf(out, outLen, "%u", static_cast<unsigned>(cfg.*(f16->member)));
