@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
+#include "anc/command_parser.hpp"
+#include "anc/config_keys.hpp"
 #include "anc/decibels.hpp"
 #include "anc/ir_analysis.hpp"
 #include "anc/ir_estimator.hpp"
@@ -100,6 +103,11 @@ NodeState NodeRuntime::doBoot() {
         startFreqHz_[i] = config_.initialFreqHz[i];
     }
     scheduler_ = CalibrationScheduler(config_.backstopIntervalMs, config_.cooldownMs);
+    outputCeiling_.store(config_.outputCeiling, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(configMutex_);
+        pendingConfig_ = config_;
+    }
     s.timestampMs = nowMs();
     status_.publish(s);
 
@@ -161,7 +169,28 @@ bool NodeRuntime::waitForAlignmentIdle() {
     return true;
 }
 
+void NodeRuntime::applyPendingConfig() {
+    if (!configChanged_.exchange(false, std::memory_order_relaxed)) {
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(configMutex_);
+        config_ = pendingConfig_;
+    }
+    scheduler_ = CalibrationScheduler(config_.backstopIntervalMs, config_.cooldownMs);
+    outputCeiling_.store(config_.outputCeiling, std::memory_order_relaxed);
+    ESP_LOGI(kTag, "new settings applied: taps=%u mu=%g tones=%u",
+             static_cast<unsigned>(config_.secondaryPathTaps),
+             static_cast<double>(config_.normalizedStepSize),
+             static_cast<unsigned>(config_.numTones));
+}
+
 NodeState NodeRuntime::doCalibrate() {
+    // Settings changed with `set` take effect here, and this calibration
+    // answers any `recal` typed before it.
+    applyPendingConfig();
+    recalRequested_.store(false, std::memory_order_relaxed);
+
     // Remember where the hum was. Calibration restarts the trackers, and
     // they should pick up from the last locked frequency rather than walk
     // back from the config's hint (at most a few Hz per second).
@@ -294,6 +323,12 @@ NodeState NodeRuntime::doRun() {
             ESP_LOGE(kTag, "divergence detected");
             return NodeState::Fault;
         }
+        // Asked for at the console: skips the cooldown, since a person
+        // asked for it.
+        if (recalRequested_.load(std::memory_order_relaxed)) {
+            ESP_LOGI(kTag, "rechecking the speaker-to-mic path: requested");
+            return NodeState::RecheckSecondaryPath;
+        }
         const bool drift = alignNeedsCalibration_.load(std::memory_order_relaxed);
         if (scheduler_.shouldRecheck(nowMs(), drift)) {
             ESP_LOGI(
@@ -401,10 +436,11 @@ void NodeRuntime::filterLoop() {
             ramp_.setTarget(target);
             rampTarget = target;
         }
-        uint32_t clips = 0;
+        const float ceiling = outputCeiling_.load(std::memory_order_relaxed);
+        uint32_t clips      = 0;
         for (std::size_t i = 0; i < kBlockSamples; ++i) {
             bool clipped = false;
-            out[i] = limitOutput(ramp_.process(out[i]), config_.outputCeiling, clipped);
+            out[i]       = limitOutput(ramp_.process(out[i]), ceiling, clipped);
             if (clipped) {
                 ++clips;
             }
@@ -496,6 +532,126 @@ void NodeRuntime::alignmentLoop() {
     }
 }
 
+void NodeRuntime::handleCommand(const char* line) {
+    const Command cmd = parseCommand(line);
+    char value[24];
+
+    switch (cmd.verb) {
+        case Verb::Get: {
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lock(configMutex_);
+                ok = formatSetting(pendingConfig_, cmd.key, value, sizeof(value));
+            }
+            if (ok) {
+                std::printf("%s = %s\n", cmd.key, value);
+            } else {
+                std::printf("unknown key %s\n", cmd.key);
+            }
+            break;
+        }
+
+        case Verb::Set: {
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lock(configMutex_);
+                ok = applySetting(pendingConfig_, cmd.key, cmd.value);
+            }
+            if (ok) {
+                configChanged_.store(true, std::memory_order_relaxed);
+                // Settings take effect at the next calibration: `recal`
+                // starts one now. The test tone and DMA block size are only
+                // read at boot, so those need `save` and a reboot.
+                std::printf(
+                    "ok, applies at the next calibration (type recal to "
+                    "start one now)\n");
+            } else {
+                std::printf("rejected: unknown key, or value out of range\n");
+            }
+            break;
+        }
+
+        case Verb::Save: {
+            NodeConfig copy;
+            {
+                std::lock_guard<std::mutex> lock(configMutex_);
+                copy = pendingConfig_;
+            }
+            if (store_.save(copy)) {
+                // Writing flash pauses both cores for a moment. That can
+                // shift the audio loop's delay, which calibration has to
+                // match, so measure it again.
+                recalRequested_.store(true, std::memory_order_relaxed);
+                std::printf(
+                    "saved; recalibrating, since the flash write paused "
+                    "the audio\n");
+            } else {
+                std::printf("save failed, see the log above\n");
+            }
+            break;
+        }
+
+        case Verb::Recal:
+            recalRequested_.store(true, std::memory_order_relaxed);
+            std::printf("recalibrating\n");
+            break;
+
+        case Verb::Help:
+            std::printf(
+                "commands:\n"
+                "  get <key>          show a setting, e.g. get "
+                "dsp.normalized_step_size\n"
+                "  set <key> <value>  change it (applies at the next "
+                "calibration)\n"
+                "  save               write the settings to flash\n"
+                "  recal              calibrate again now\n"
+                "  help               this list\n"
+                "keys are the node.json names, e.g. "
+                "calibration.probe_duration_ms (see docs/config.md)\n");
+            break;
+
+        case Verb::Invalid:
+            std::printf("unknown command, try help\n");
+            break;
+    }
+}
+
+void NodeRuntime::configLoop() {
+    // Build up one line at a time. The console hands over characters as
+    // they arrive (the monitor sends each key press), so a single read
+    // can hold half a command.
+    char line[96];
+    std::size_t len  = 0;
+    bool overflowing = false;
+
+    for (;;) {
+        const int c = std::fgetc(stdin);
+        if (c == EOF) {
+            // Nothing typed yet. stdin doesn't block here, so clear the
+            // end-of-file flag and look again shortly.
+            std::clearerr(stdin);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
+
+        if (c == '\r' || c == '\n') {
+            if (overflowing) {
+                std::printf("line too long, try help\n");
+            } else if (len > 0) {
+                line[len] = '\0';
+                std::printf("> %s\n", line);  // the monitor doesn't echo
+                handleCommand(line);
+            }
+            len         = 0;
+            overflowing = false;
+        } else if (len + 1 < sizeof(line)) {
+            line[len++] = static_cast<char>(c);
+        } else {
+            overflowing = true;
+        }
+    }
+}
+
 void NodeRuntime::telemetryLoop() {
     for (;;) {
         NodeStatus s = status_.read();
@@ -554,7 +710,13 @@ void NodeRuntime::spawnTasks() {
         [](void* arg) { static_cast<NodeRuntime*>(arg)->alignmentLoop(); }, "alignment",
         4096, this, 3, nullptr, kNonRealtimeCore);
 
-    ESP_LOGI(kTag, "tasks spawned");
+    // ConfigTask: serial commands. Lowest priority on core 1. A bigger
+    // stack than the others, because `save` runs cJSON and LittleFS.
+    xTaskCreatePinnedToCore(
+        [](void* arg) { static_cast<NodeRuntime*>(arg)->configLoop(); }, "config", 6144,
+        this, 1, nullptr, kNonRealtimeCore);
+
+    ESP_LOGI(kTag, "tasks spawned; type help for serial commands");
 }
 
 void NodeRuntime::start() {
