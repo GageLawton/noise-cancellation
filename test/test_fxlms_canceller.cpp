@@ -135,6 +135,47 @@ void test_cancels_two_tones() {
     TEST_ASSERT_TRUE(reductionDb >= 35.0f);
 }
 
+void test_reports_residual_and_convergence() {
+    float path[16] = {};
+    path[5]        = 0.6f;
+    path[6]        = -0.2f;
+
+    canc = anc::FxlmsCanceller(kFs);
+    canc.setSecondaryPath(path, 16);
+    canc.setNumTones(2);
+    canc.setToneFrequency(0, 60.0f);
+    canc.setToneFrequency(1, 120.0f);
+    canc.setNormalizedStepSize(0.1f);
+    TEST_ASSERT_FALSE(canc.converged());
+
+    SimulatedRoom room(kFs, path, 16);
+    room.addHum(60.0f, 0.5f, 0.7f);
+    room.addHum(120.0f, 0.3f, 0.0f);
+
+    bool convergedEarly = false;
+    for (int i = 0; i < 16000; ++i) {
+        canc.update(room.step(canc.nextOutput()));
+        if (i == 100) {
+            convergedEarly = canc.converged();
+        }
+    }
+    TEST_ASSERT_FALSE(convergedEarly);
+    TEST_ASSERT_TRUE(canc.converged());
+    TEST_ASSERT_TRUE(canc.residualPower() < 1e-4f);
+}
+
+void test_loud_sample_resets_convergence() {
+    canc = anc::FxlmsCanceller(kFs);
+    canc.setConvergedThreshold(0.01f);
+    for (std::size_t i = 0; i < anc::FxlmsCanceller::kConvergedSamples; ++i) {
+        canc.update(0.0f);
+    }
+    TEST_ASSERT_TRUE(canc.converged());
+
+    canc.update(10.0f);  // pushes the average well above 0.01
+    TEST_ASSERT_FALSE(canc.converged());
+}
+
 void test_num_tones_is_clamped() {
     canc = anc::FxlmsCanceller(kFs);
     canc.setNumTones(0);
@@ -153,5 +194,7 @@ int main() {
     RUN_TEST(test_cancels_simulated_hum);
     RUN_TEST(test_cancels_two_tones);
     RUN_TEST(test_num_tones_is_clamped);
+    RUN_TEST(test_reports_residual_and_convergence);
+    RUN_TEST(test_loud_sample_resets_convergence);
     return UNITY_END();
 }

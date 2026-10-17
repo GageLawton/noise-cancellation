@@ -49,6 +49,10 @@ public:
 
     void setNormalizedStepSize(float mu) { mu_ = mu; }
 
+    // converged() needs residualPower() below this for kConvergedSamples
+    // samples in a row.
+    void setConvergedThreshold(float power) { convergedThreshold_ = power; }
+
     // Advances every active reference by one sample, updates the filtered
     // references, and returns the speaker sample.
     float nextOutput() {
@@ -72,6 +76,8 @@ public:
     // move to make the speaker oppose the hum. Design doc 6.1 writes "+"
     // because it treats the output as already inverted.
     void update(float mic) {
+        trackResidual(mic);
+
         float squares = 0.0f;
         for (std::size_t t = 0; t < numTones_; ++t) {
             squares += tones_[t].filteredSin * tones_[t].filteredSin +
@@ -95,10 +101,30 @@ public:
     float filteredCos(std::size_t toneIdx = 0) const {
         return tones_[toneIdx].filteredCos;
     }
+    // Running average of the mic power: how much hum is left (telemetry
+    // reports it as NodeStatus::residualPower).
+    float residualPower() const { return residual_.value(); }
+
+    // True once residualPower() has stayed below the converged threshold
+    // for kConvergedSamples in a row; any sample above it starts over.
+    bool converged() const { return belowCount_ >= kConvergedSamples; }
+
     // Weight i of 2 * kMaxTones: tone i / 2, sine if i is even, cosine if odd.
     float weight(std::size_t i) const { return w_[i]; }
 
+    static constexpr std::size_t kConvergedSamples = 4000;  // 0.5 s at 8 kHz
+
 private:
+    void trackResidual(float mic) {
+        if (residual_.update(mic) < convergedThreshold_) {
+            if (belowCount_ < kConvergedSamples) {
+                ++belowCount_;
+            }
+        } else {
+            belowCount_ = 0;
+        }
+    }
+
     struct Tone {
         FirFilter<kMaxPathTaps> pathSin;
         FirFilter<kMaxPathTaps> pathCos;
@@ -110,8 +136,11 @@ private:
     Tone tones_[kTones];
     // One shared average of every filtered sin^2 and cos^2.
     RunningPower power_{0.01f};
-    std::size_t numTones_ = 1;
-    float mu_             = 0.0f;
+    RunningPower residual_{0.001f};  // average of mic^2
+    float convergedThreshold_ = 1e-4f;
+    std::size_t belowCount_   = 0;
+    std::size_t numTones_     = 1;
+    float mu_                 = 0.0f;
     float w_[2 * kTones]{};
 };
 
