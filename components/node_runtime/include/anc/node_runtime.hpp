@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "anc/alignment_engine.hpp"
 #include "anc/block_processor.hpp"
 #include "anc/config_store.hpp"
 #include "anc/divergence_detector.hpp"
@@ -63,6 +64,13 @@ private:
     bool useProcessor(IBlockProcessor* p);
     // Sets the fade target and waits until the output gain gets there.
     bool fadeTo(float gain);
+
+    // Hands the new path and config to AlignmentTask, which configures its
+    // engine itself (see alignConfigPending_).
+    void configureAlignment();
+    // Waits until AlignmentTask has taken the last configuration, so the
+    // path and config it reads can be rewritten safely.
+    bool waitForAlignmentIdle();
 
     // AudioIOTask body: read a mic block, hand it to FilterTask, play the
     // block FilterTask made earlier, repeat. The blocking I2S read paces
@@ -151,6 +159,22 @@ private:
     // steady growth. Only FilterTask touches divergence_.
     DivergenceDetector divergence_{0.25f, 25};
     std::atomic<bool> diverged_{false};
+
+    // M6: frequency tracking and drift checks, run by AlignmentTask on
+    // core 1. Only AlignmentTask touches align_. The main task asks for a
+    // new configuration by filling alignCfg_ (and secondaryPath_) and
+    // raising alignConfigPending_; AlignmentTask calls configure() itself
+    // and lowers the flag. That keeps configure() from ever running in the
+    // middle of update() on the other core.
+    AlignmentEngine align_;
+    NodeConfig alignCfg_{};
+    std::atomic<bool> alignConfigPending_{false};
+    // What the engine found, for telemetry and the canceller.
+    std::atomic<float> trackedFreqHz_[kMaxTones] = {};
+    std::atomic<bool> trackedLocked_[kMaxTones]  = {};
+    std::atomic<float> alignCorrelation_{0.0f};
+    std::atomic<bool> alignLowConfidence_{false};
+    std::atomic<bool> alignNeedsCalibration_{false};
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
