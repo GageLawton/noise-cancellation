@@ -1,9 +1,12 @@
 #include "anc/node_runtime.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 #include "anc/decibels.hpp"
+#include "anc/ir_analysis.hpp"
+#include "anc/ir_estimator.hpp"
 #include "anc/output_limiter.hpp"
 #include "anc/rms.hpp"
 #include "esp_log.h"
@@ -23,6 +26,15 @@ constexpr BaseType_t kRealtimeCore    = 0;
 constexpr BaseType_t kNonRealtimeCore = 1;
 
 constexpr uint32_t kTelemetryPeriodMs = 1000;
+
+// How long the main task waits for FilterTask to act on a request. A
+// block is 4 ms, so these only run out if FilterTask has stopped.
+constexpr uint32_t kFilterResponseTimeoutMs = 100;
+constexpr uint32_t kFadeTimeoutMs           = 200;  // the fade itself is 50 ms
+
+// A calibration peak below this many times the RMS of all taps is
+// indistinguishable from noise (see doCalibrate).
+constexpr float kMinPeakToRms = 5.0f;
 
 // The mic level meter falls 20 dB per second (250 blocks).
 constexpr float kMicMeterFallDbPerBlock = 20.0f / 250.0f;
@@ -99,9 +111,121 @@ NodeState NodeRuntime::doInitHal() {
     return NodeState::CalibrateSecondaryPath;
 }
 
+bool NodeRuntime::useProcessor(IBlockProcessor* p) {
+    processor_.store(p, std::memory_order_release);
+    // Two blocks: the one in progress may have loaded the old pointer, so
+    // the second is the first that certainly ran p.
+    const uint32_t start = filterBlocks_.load(std::memory_order_relaxed);
+    const uint32_t t0    = nowMs();
+    while (filterBlocks_.load(std::memory_order_relaxed) - start < 2) {
+        if (nowMs() - t0 > kFilterResponseTimeoutMs) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+    return true;
+}
+
+bool NodeRuntime::fadeTo(float gain) {
+    gainTarget_.store(gain, std::memory_order_relaxed);
+    const uint32_t t0 = nowMs();
+    while (outputGain_.load(std::memory_order_relaxed) != gain) {
+        if (nowMs() - t0 > kFadeTimeoutMs) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    return true;
+}
+
 NodeState NodeRuntime::doCalibrate() {
-    // M4: play probe, capture impulse response, compute FIR estimate.
-    ESP_LOGI(kTag, "calibration (stub -- no probe until M4)");
+    // 1. Fade out whatever is playing, then switch to silence.
+    // 2. Fade "up" on silence. The probe then plays at full gain from its
+    //    first sample, so the speaker plays exactly what is recorded; a
+    //    fade-in on the probe itself would skew the estimate.
+    if (!fadeTo(0.0f) || !useProcessor(&silence_) || !fadeTo(1.0f)) {
+        ESP_LOGE(kTag, "calibration: FilterTask not responding");
+        return NodeState::Fault;
+    }
+
+    std::size_t samples =
+        config_.probeDurationMs * static_cast<uint32_t>(kSampleRateHz) / 1000;
+    if (samples > ProbeProcessor::kMaxSamples) {
+        ESP_LOGW(kTag,
+                 "probe_duration_ms %u is longer than the recorder holds; "
+                 "using %u ms",
+                 static_cast<unsigned>(config_.probeDurationMs),
+                 static_cast<unsigned>(ProbeProcessor::kMaxSamples * 1000 /
+                                       static_cast<uint32_t>(kSampleRateHz)));
+        samples = ProbeProcessor::kMaxSamples;
+    }
+
+    // 3. Play the probe until the recording is full. probe_ isn't active
+    //    yet, so begin() can't race FilterTask; the store publishes it.
+    ESP_LOGI(
+        kTag, "calibration: playing %u ms probe",
+        static_cast<unsigned>(samples * 1000 / static_cast<uint32_t>(kSampleRateHz)));
+    probeDone_.store(false, std::memory_order_relaxed);
+    probe_.begin(samples);
+    processor_.store(&probe_, std::memory_order_release);
+
+    const uint32_t t0     = nowMs();
+    const uint32_t giveUp = 2 * config_.probeDurationMs;
+    bool finished         = false;
+    while (!(finished = probeDone_.load(std::memory_order_acquire))) {
+        if (nowMs() - t0 > giveUp) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    // Leave the output silent and faded down, like FAULT does, so RUN's
+    // first sound fades in.
+    (void)useProcessor(&silence_);
+    gainTarget_.store(0.0f, std::memory_order_relaxed);
+    if (!finished) {
+        ESP_LOGE(kTag, "calibration: probe didn't finish in %u ms",
+                 static_cast<unsigned>(giveUp));
+        return NodeState::Fault;
+    }
+
+    // 4. Estimate the impulse response. FilterTask has stopped writing the
+    //    recording (it is full), so reading it here is safe.
+    const auto& rec = probe_.recording();
+    const std::size_t taps =
+        std::min<std::size_t>(config_.secondaryPathTaps, kMaxSecondaryPathTaps);
+    estimateImpulseResponse(rec.probe(), rec.mic(), rec.size(), secondaryPath_, taps);
+    secondaryPathTaps_ = taps;
+
+    const IrPeak peak = findPeak(secondaryPath_, taps);
+    ESP_LOGI(kTag, "calibration: peak at tap %u, value %.4f, delay %.2f ms",
+             static_cast<unsigned>(peak.index), peak.value,
+             delayMs(peak.index, kSampleRateHz));
+
+    // A response with no clear peak means the mic didn't hear the probe.
+    // White-noise leakage alone puts the biggest of N taps only a few
+    // times above their RMS; a real path stands well clear of that.
+    double sumSquares = 0.0;
+    for (std::size_t k = 0; k < taps; ++k) {
+        sumSquares += static_cast<double>(secondaryPath_[k]) * secondaryPath_[k];
+    }
+    const float tapRms = static_cast<float>(std::sqrt(sumSquares / taps));
+    if (std::fabs(peak.value) < kMinPeakToRms * tapRms) {
+        ESP_LOGW(kTag,
+                 "calibration: no clear peak -- is the speaker playing and "
+                 "the mic connected?");
+    }
+    // If the peak sits near the end, the tail of the response probably
+    // doesn't fit, and the canceller would work from a cut-off model.
+    if (peak.index >= taps * 3 / 4) {
+        ESP_LOGW(kTag,
+                 "calibration: peak is near the last tap; raise "
+                 "dsp.secondary_path_taps");
+    }
+
+    // One line per tap, for tools/ir_from_log.py.
+    for (std::size_t k = 0; k < taps; ++k) {
+        ESP_LOGI(kTag, "ir,%u,%.6f", static_cast<unsigned>(k), secondaryPath_[k]);
+    }
     return NodeState::Run;
 }
 
@@ -208,6 +332,10 @@ void NodeRuntime::filterLoop() {
         }
         if (clips > 0) {
             clipEvents_.fetch_add(clips, std::memory_order_relaxed);
+        }
+        outputGain_.store(ramp_.gain(), std::memory_order_relaxed);
+        if (processor == &probe_ && probe_.done()) {
+            probeDone_.store(true, std::memory_order_release);
         }
 
         uint32_t dropped = 0;
