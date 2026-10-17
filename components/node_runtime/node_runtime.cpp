@@ -94,6 +94,7 @@ NodeState NodeRuntime::doInitHal() {
         ESP_LOGE(kTag, "I2S init failed, check the mic and amp wiring");
         return NodeState::Fault;
     }
+    tone_.emplace(kSampleRateHz, config_.testToneHz, config_.testToneAmplitude);
     return NodeState::CalibrateSecondaryPath;
 }
 
@@ -104,9 +105,11 @@ NodeState NodeRuntime::doCalibrate() {
 }
 
 NodeState NodeRuntime::doRun() {
-    // M5/M6 fill this in. For now the state machine parks here and the
-    // telemetry task keeps proving the system is alive.
-    ESP_LOGI(kTag, "running (stub -- no DSP until M5)");
+    // M3: prove the speaker path with a steady tone. M5 replaces this with
+    // the canceller.
+    processor_.store(&*tone_, std::memory_order_release);
+    ESP_LOGI(kTag, "test tone %.1f Hz at %.2f", config_.testToneHz,
+             config_.testToneAmplitude);
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
