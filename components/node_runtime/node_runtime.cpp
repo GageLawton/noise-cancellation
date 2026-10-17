@@ -109,7 +109,7 @@ NodeState NodeRuntime::doRun() {
 
 void NodeRuntime::audioIoLoop() {
     float mic[kBlockSamples];
-    float out[kBlockSamples] = {};  // still silence; FilterTask's output comes next
+    float out[kBlockSamples];
 
     for (;;) {
         const std::size_t n = audio_.readBlock(mic, kBlockSamples);
@@ -125,6 +125,27 @@ void NodeRuntime::audioIoLoop() {
             (void)micRing_.push(mic[i]);
         }
         xTaskNotifyGive(filterTask_);
+
+        // Normally the ring holds exactly the lead here. After an underrun
+        // a late FilterTask catches up and leaves extra samples behind,
+        // which would make every later sample reach the speaker later than
+        // calibration measured. Skip the stale ones so the delay stays
+        // fixed. FilterTask can't push while this runs (lower priority,
+        // same core), so size() is exact.
+        float stale = 0.0f;
+        while (outRing_.size() > kOutputLeadSamples && outRing_.pop(stale)) {
+        }
+
+        uint32_t missing = 0;
+        for (std::size_t i = 0; i < n; ++i) {
+            if (!outRing_.pop(out[i])) {
+                out[i] = 0.0f;
+                ++missing;
+            }
+        }
+        if (missing > 0) {
+            underruns_.fetch_add(missing, std::memory_order_relaxed);
+        }
 
         audio_.writeBlock(out, n);
         blocksProcessed_.fetch_add(1, std::memory_order_relaxed);
@@ -151,6 +172,11 @@ void NodeRuntime::filterLoop() {
         // Load the pointer once per block, so a swap never lands mid-block.
         IBlockProcessor* processor = processor_.load(std::memory_order_acquire);
         processor->processBlock(mic, out, kBlockSamples);
+
+        for (std::size_t i = 0; i < kBlockSamples; ++i) {
+            // Can't fail: AudioIOTask keeps this ring near the lead.
+            (void)outRing_.push(out[i]);
+        }
         filterBlocks_.fetch_add(1, std::memory_order_relaxed);
     }
 }
@@ -164,7 +190,7 @@ void NodeRuntime::spawnTasks() {
                 NodeStatus s = self->status().read();
                 ESP_LOGI("telemetry",
                          "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
-                         "blocks=%u filter=%u",
+                         "blocks=%u filter=%u under=%u",
                          toString(s.state), static_cast<int>(s.converged),
                          s.residualPower, s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
                          s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
@@ -172,11 +198,19 @@ void NodeRuntime::spawnTasks() {
                          static_cast<unsigned>(
                              self->blocksProcessed_.load(std::memory_order_relaxed)),
                          static_cast<unsigned>(
-                             self->filterBlocks_.load(std::memory_order_relaxed)));
+                             self->filterBlocks_.load(std::memory_order_relaxed)),
+                         static_cast<unsigned>(
+                             self->underruns_.load(std::memory_order_relaxed)));
                 vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
             }
         },
         "telemetry", 4096, this, 2, nullptr, kNonRealtimeCore);
+
+    // Start the speaker ring at its lead, so the first blocks don't
+    // underrun while FilterTask gets going.
+    for (std::size_t i = 0; i < kOutputLeadSamples; ++i) {
+        (void)outRing_.push(0.0f);
+    }
 
     // FilterTask: the DSP. Same core as AudioIOTask, one priority below,
     // so it runs in the gaps while AudioIOTask waits on I2S. Created first
