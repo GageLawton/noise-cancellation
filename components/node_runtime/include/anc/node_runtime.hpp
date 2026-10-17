@@ -7,6 +7,7 @@
 
 #include "anc/block_processor.hpp"
 #include "anc/config_store.hpp"
+#include "anc/gain_ramp.hpp"
 #include "anc/i2s_audio_io.hpp"
 #include "anc/node_config.hpp"
 #include "anc/node_state.hpp"
@@ -95,6 +96,15 @@ private:
     // M3 test tone. Built in doInitHal() once the config is loaded, since
     // ToneProcessor takes its frequency and level in the constructor.
     std::optional<ToneProcessor> tone_;
+
+    // Output safety stage, after whatever processor runs: a fade, so
+    // switching never clicks, then a hard limiter at output.ceiling.
+    // ramp_ belongs to FilterTask alone. Other tasks ask for a new level
+    // through gainTarget_, which FilterTask applies at the next block, so
+    // GainRamp never sees two threads at once.
+    GainRamp ramp_{400};  // 50 ms at 8 kHz
+    std::atomic<float> gainTarget_{0.0f};
+    std::atomic<uint32_t> clipEvents_{0};  // samples the limiter clipped
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
