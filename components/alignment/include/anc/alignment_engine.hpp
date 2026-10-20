@@ -33,6 +33,9 @@ public:
         for (std::size_t t = 0; t < numTones_; ++t) {
             plls_[t] = Pll(cfg.initialFreqHz[t], kSampleRateHz);
             plls_[t].setMaxDriftRate(cfg.maxDriftRateHzPerSec);
+            // Halved because the PLL's i/q amplitude is about half the
+            // hum's amplitude (see setMinAmplitude in pll.hpp).
+            plls_[t].setMinAmplitude(cfg.minLockAmplitude / 2.0f);
         }
     }
 
