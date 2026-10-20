@@ -97,7 +97,9 @@ NodeState NodeRuntime::doBoot() {
         s.freqLocked[i]    = false;
         // Telemetry shows the starting hint until tracking takes over.
         trackedFreqHz_[i].store(config_.initialFreqHz[i], std::memory_order_relaxed);
+        startFreqHz_[i] = config_.initialFreqHz[i];
     }
+    scheduler_ = CalibrationScheduler(config_.backstopIntervalMs, config_.cooldownMs);
     s.timestampMs = nowMs();
     status_.publish(s);
 
@@ -142,6 +144,9 @@ bool NodeRuntime::fadeTo(float gain) {
 
 void NodeRuntime::configureAlignment() {
     alignCfg_ = config_;
+    for (std::size_t t = 0; t < config_.numTones; ++t) {
+        alignCfg_.initialFreqHz[t] = startFreqHz_[t];
+    }
     alignConfigPending_.store(true, std::memory_order_release);
 }
 
@@ -157,6 +162,15 @@ bool NodeRuntime::waitForAlignmentIdle() {
 }
 
 NodeState NodeRuntime::doCalibrate() {
+    // Remember where the hum was. Calibration restarts the trackers, and
+    // they should pick up from the last locked frequency rather than walk
+    // back from the config's hint (at most a few Hz per second).
+    for (std::size_t t = 0; t < config_.numTones; ++t) {
+        startFreqHz_[t] = trackedLocked_[t].load(std::memory_order_relaxed)
+                              ? trackedFreqHz_[t].load(std::memory_order_relaxed)
+                              : config_.initialFreqHz[t];
+    }
+
     // 1. Fade out whatever is playing, then switch to silence.
     // 2. Fade "up" on silence. The probe then plays at full gain from its
     //    first sample, so the speaker plays exactly what is recorded; a
@@ -251,6 +265,7 @@ NodeState NodeRuntime::doCalibrate() {
     }
 
     configureAlignment();
+    scheduler_.markCalibrated(nowMs());
     return NodeState::Run;
 }
 
@@ -261,7 +276,7 @@ NodeState NodeRuntime::doRun() {
     canceller_.setSecondaryPath(secondaryPath_, secondaryPathTaps_);
     canceller_.setNumTones(config_.numTones);
     for (std::size_t t = 0; t < config_.numTones; ++t) {
-        canceller_.setToneFrequency(t, config_.initialFreqHz[t]);
+        canceller_.setToneFrequency(t, startFreqHz_[t]);
     }
     canceller_.setNormalizedStepSize(config_.normalizedStepSize);
 
@@ -269,7 +284,7 @@ NodeState NodeRuntime::doRun() {
     processor_.store(&fxlms_, std::memory_order_release);
     gainTarget_.store(1.0f, std::memory_order_relaxed);
     ESP_LOGI(kTag, "cancelling %u tone(s) from %.1f Hz, mu %.4f",
-             static_cast<unsigned>(config_.numTones), config_.initialFreqHz[0],
+             static_cast<unsigned>(config_.numTones), startFreqHz_[0],
              config_.normalizedStepSize);
 
     // Check often: a diverging canceller gets loud within a fraction of a
@@ -278,6 +293,13 @@ NodeState NodeRuntime::doRun() {
         if (diverged_.exchange(false, std::memory_order_relaxed)) {
             ESP_LOGE(kTag, "divergence detected");
             return NodeState::Fault;
+        }
+        const bool drift = alignNeedsCalibration_.load(std::memory_order_relaxed);
+        if (scheduler_.shouldRecheck(nowMs(), drift)) {
+            ESP_LOGI(
+                kTag, "rechecking the speaker-to-mic path: %s",
+                drift ? "the model no longer matches" : "backstop interval reached");
+            return NodeState::RecheckSecondaryPath;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -395,6 +417,17 @@ void NodeRuntime::filterLoop() {
             probeDone_.store(true, std::memory_order_release);
         }
         if (processor == &fxlms_) {
+            // Follow the hum as it drifts (M6), but only on a frequency the
+            // tracker trusts: locked, and not possibly locked onto our own
+            // output. Takes effect from the next block.
+            const bool trusted = !alignLowConfidence_.load(std::memory_order_relaxed);
+            for (std::size_t t = 0; t < canceller_.numTones(); ++t) {
+                if (trusted && trackedLocked_[t].load(std::memory_order_relaxed)) {
+                    canceller_.setToneFrequency(
+                        t, trackedFreqHz_[t].load(std::memory_order_relaxed));
+                }
+            }
+
             residualDbfs_.store(amplitudeToDb(std::sqrt(canceller_.residualPower())),
                                 std::memory_order_relaxed);
             converged_.store(canceller_.converged(), std::memory_order_relaxed);
