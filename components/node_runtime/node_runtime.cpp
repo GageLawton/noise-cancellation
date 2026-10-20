@@ -702,6 +702,7 @@ void NodeRuntime::configLoop() {
 void NodeRuntime::telemetryLoop() {
     for (uint32_t tick = 1;; ++tick) {
         NodeStatus s = status_.read();
+        coordinator_.report(s);
         ESP_LOGI(
             "telemetry",
             "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
@@ -733,6 +734,9 @@ void NodeRuntime::telemetryLoop() {
                      stackFree(audioIoTask_), stackFree(filterTask_),
                      stackFree(alignmentTask_), stackFree(configTask_),
                      static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+            // On one board this should always say 1.
+            ESP_LOGI("telemetry", "coordinator: %u node(s)",
+                     static_cast<unsigned>(coordinator_.nodeCount()));
         }
         vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
     }
