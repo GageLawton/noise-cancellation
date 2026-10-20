@@ -152,8 +152,14 @@ Talking between nodes (M7, planned).
 
 | Header | What it does |
 |---|---|
+| [`crc8.hpp`](../components/transport/include/anc/crc8.hpp) | One-byte CRC-8 checksum, so a node can throw away a corrupted message. |
 | [`sync_message.hpp`](../components/transport/include/anc/sync_message.hpp) | The timing message nodes exchange, and its 20-byte wire format. |
+| [`sync_tick.hpp`](../components/transport/include/anc/sync_tick.hpp) | `ISyncTick`: a shared tick that keeps boards in step. A fake ([`fake_sync_tick.hpp`](../test/fakes/fake_sync_tick.hpp)) stands in for host tests. |
 
 ### coordinator
 
-Collects status from every node (M7, planned). No headers yet.
+Collects status from every node (M7, planned).
+
+| Header | What it does |
+|---|---|
+| [`coordinator.hpp`](../components/coordinator/include/anc/coordinator.hpp) | `ICoordinator` and `LocalCoordinator`: keeps the latest status of each node, up to 8 nodes. |
