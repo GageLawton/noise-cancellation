@@ -37,6 +37,7 @@ set(ANC_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # makes off-target testing free -- see design doc 9.1.
 add_library(anc_portable
     ${ANC_ROOT}/components/config/node_config.cpp
+    ${ANC_ROOT}/components/node_runtime/node_state.cpp
 )
 target_compile_options(anc_portable PRIVATE ${ANC_CXX_FLAGS})
 target_link_options(anc_portable PUBLIC ${ANC_LINK_FLAGS})
