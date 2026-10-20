@@ -9,7 +9,7 @@ NodeConfig NodeConfig::defaults() {
 
     std::strncpy(c.nodeName, "anc-node", kNodeNameMaxLen - 1);
 
-    c.secondaryPathTaps  = 128;  // ~16ms at 8kHz, see design doc 6.2
+    c.secondaryPathTaps  = 256;  // 32ms at 8kHz, covers the loop delay (design doc 6.2)
     c.normalizedStepSize = 0.1f;
     c.dmaBlockSamples    = 32;  // 4ms at 8kHz
 

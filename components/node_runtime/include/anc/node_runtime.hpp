@@ -12,6 +12,7 @@
 #include "anc/node_config.hpp"
 #include "anc/node_state.hpp"
 #include "anc/node_status.hpp"
+#include "anc/probe_processor.hpp"
 #include "anc/silence_processor.hpp"
 #include "anc/spsc_ring_buffer.hpp"
 #include "anc/tone_processor.hpp"
@@ -50,6 +51,15 @@ private:
     NodeState doRun();
 
     void spawnTasks();
+
+    // Main-task helpers for driving FilterTask. Each returns false if
+    // FilterTask didn't respond in time (it should within a few blocks).
+    //
+    // Makes p the active processor and waits until FilterTask has run a
+    // whole block with it, so the old one is no longer in use.
+    bool useProcessor(IBlockProcessor* p);
+    // Sets the fade target and waits until the output gain gets there.
+    bool fadeTo(float gain);
 
     // AudioIOTask body: read a mic block, hand it to FilterTask, play the
     // block FilterTask made earlier, repeat. The blocking I2S read paces
@@ -104,7 +114,23 @@ private:
     // GainRamp never sees two threads at once.
     GainRamp ramp_{400};  // 50 ms at 8 kHz
     std::atomic<float> gainTarget_{0.0f};
+    std::atomic<float> outputGain_{0.0f};  // ramp_'s gain after the last block
     std::atomic<uint32_t> clipEvents_{0};  // samples the limiter clipped
+
+    // M4 calibration: plays white noise and records what the mic hears.
+    // 0.1 is quiet enough to be comfortable, and loud enough that 300 ms
+    // of probe gives a clean estimate.
+    static constexpr float kProbeAmplitude = 0.1f;
+    ProbeProcessor probe_{kProbeAmplitude};
+    // Set by FilterTask once the probe recording is full. The release /
+    // acquire pair makes the finished recording visible to the main task.
+    std::atomic<bool> probeDone_{false};
+
+    // The measured speaker-to-mic impulse response, for the canceller.
+    // Sized for the largest secondary_path_taps that validate() allows.
+    static constexpr std::size_t kMaxSecondaryPathTaps = 1024;
+    float secondaryPath_[kMaxSecondaryPathTaps]{};
+    std::size_t secondaryPathTaps_ = 0;
     // What FilterTask runs. Later milestones swap in the tone, the probe
     // and the canceller with a single store().
     std::atomic<IBlockProcessor*> processor_{&silence_};
