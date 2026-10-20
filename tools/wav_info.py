@@ -7,6 +7,7 @@ Usage:
 
 import argparse
 import math
+import json
 import sys
 import wave
 
@@ -45,12 +46,24 @@ def summarize(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", help="16-bit PCM WAV recording to summarize")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print metadata as JSON",
+    )
     args = parser.parse_args()
     try:
         info = summarize(args.path)
     except (OSError, ValueError, wave.Error, EOFError) as error:
         sys.exit(f"Cannot summarize WAV: {error}")
 
+    if args.json:
+        json_info={
+            key:None if isinstance(value,float)and math.isinf(value)else value
+            for key,value in info.items()
+        }
+        print(json.dumps(json_info))
+        return
     print(f"file:        {info['file']}")
     print(f"channels:    {info['channels']}")
     print(f"sample rate: {info['sample_rate']} Hz")
