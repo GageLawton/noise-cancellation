@@ -10,6 +10,7 @@
 #include "anc/block_processor.hpp"
 #include "anc/calibration_scheduler.hpp"
 #include "anc/config_store.hpp"
+#include "anc/coordinator.hpp"
 #include "anc/divergence_detector.hpp"
 #include "anc/fxlms_canceller.hpp"
 #include "anc/fxlms_processor.hpp"
@@ -192,6 +193,11 @@ private:
     float humBuf_[kHumSamples]{};
     std::size_t humCount_ = 0;
     std::atomic<float> humDbfs_{-120.0f};
+
+    // M7 skeleton: node 1 plays both roles, reporting to its own
+    // coordinator. LocalCoordinator isn't thread-safe; only TelemetryTask
+    // touches it.
+    LocalCoordinator coordinator_;
 
     // Where each tone starts after a calibration: the last locked
     // frequency if there is one, else the config's hint. Set at the start
