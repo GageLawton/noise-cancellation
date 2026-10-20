@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "anc/decibels.hpp"
+#include "anc/output_limiter.hpp"
 #include "anc/rms.hpp"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -108,6 +109,7 @@ NodeState NodeRuntime::doRun() {
     // M3: prove the speaker path with a steady tone. M5 replaces this with
     // the canceller.
     processor_.store(&*tone_, std::memory_order_release);
+    gainTarget_.store(1.0f, std::memory_order_relaxed);  // fade in, no click
     ESP_LOGI(kTag, "test tone %.1f Hz at %.2f", config_.testToneHz,
              config_.testToneAmplitude);
     for (;;) {
@@ -165,6 +167,7 @@ void NodeRuntime::filterLoop() {
     float mic[kBlockSamples];
     float out[kBlockSamples];
     float micLevelDb = -120.0f;
+    float rampTarget = 0.0f;  // the target ramp_ is heading for
 
     for (;;) {
         // Collect exactly one block. When the ring runs dry, sleep until
@@ -189,6 +192,23 @@ void NodeRuntime::filterLoop() {
         // Load the pointer once per block, so a swap never lands mid-block.
         IBlockProcessor* processor = processor_.load(std::memory_order_acquire);
         processor->processBlock(mic, out, kBlockSamples);
+
+        const float target = gainTarget_.load(std::memory_order_relaxed);
+        if (target != rampTarget) {
+            ramp_.setTarget(target);
+            rampTarget = target;
+        }
+        uint32_t clips = 0;
+        for (std::size_t i = 0; i < kBlockSamples; ++i) {
+            bool clipped = false;
+            out[i] = limitOutput(ramp_.process(out[i]), config_.outputCeiling, clipped);
+            if (clipped) {
+                ++clips;
+            }
+        }
+        if (clips > 0) {
+            clipEvents_.fetch_add(clips, std::memory_order_relaxed);
+        }
 
         uint32_t dropped = 0;
         for (std::size_t i = 0; i < kBlockSamples; ++i) {
@@ -230,7 +250,7 @@ void NodeRuntime::telemetryLoop() {
             toString(s.state), static_cast<int>(s.converged), s.residualPower,
             s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
             s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
-            static_cast<unsigned>(s.clipEvents),
+            static_cast<unsigned>(clipEvents_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(blocksProcessed_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(filterBlocks_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(underruns_.load(std::memory_order_relaxed)),
