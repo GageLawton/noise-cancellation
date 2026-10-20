@@ -10,6 +10,8 @@ Full design rationale: [`docs/design.md`](docs/design.md).
 
 Hardware setup: [`docs/hardware.md`](docs/hardware.md).
 
+Measurements from the bench: [`docs/bench-results.md`](docs/bench-results.md).
+
 ## Status
 
 The device boots, loads its JSON config from flash, runs the state machine
@@ -342,7 +344,7 @@ components/
 main/            app_main.cpp
 test/            host build + Unity tests
   fakes/         fakes and the simulated room for host tests
-docs/            design, config, hardware and glossary pages
+docs/            design, config, hardware, bench results and glossary pages
 tools/           offline analysis scripts
 scripts/         dev helpers (coverage)
 ```
