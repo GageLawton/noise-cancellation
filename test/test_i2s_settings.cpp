@@ -14,6 +14,7 @@ void test_defaults_match_audio_configuration() {
     TEST_ASSERT_EQUAL_INT(6, settings.doutPin);
     TEST_ASSERT_EQUAL_INT(7, settings.dinPin);
     TEST_ASSERT_EQUAL_INT(32, settings.dmaFrames);
+    TEST_ASSERT_EQUAL_INT(3, settings.dmaBuffers);
 }
 
 }  // namespace
