@@ -6,8 +6,8 @@ Usage:
 """
 
 import argparse
-import math
 import json
+import math
 import sys
 import wave
 
