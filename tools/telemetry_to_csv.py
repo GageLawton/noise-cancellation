@@ -13,6 +13,7 @@ log lines are skipped.
 Usage:
     python tools/telemetry_to_csv.py monitor.log
     python tools/telemetry_to_csv.py monitor.log --out telemetry.csv
+    python tools/telemetry_to_csv.py monitor.log --columns state,resid
 """
 
 import argparse
@@ -73,8 +74,25 @@ def to_rows(lines):
     return columns, rows
 
 
+def select_columns(columns, wanted):
+    """Return ``line`` plus the comma-separated wanted columns, in that order.
+
+    Exits with a message if a wanted column never appears in the log.
+    """
+    selected = ["line"]
+    for name in wanted.split(","):
+        name = name.strip()
+        if not name or name in selected:
+            continue
+        if name not in columns:
+            sys.exit(f"No telemetry key named {name!r} in the log")
+        selected.append(name)
+    return selected
+
+
 def write_csv(columns, rows, out):
-    writer = csv.DictWriter(out, fieldnames=columns, restval="")
+    # extrasaction="ignore" drops keys that aren't in columns, for --columns.
+    writer = csv.DictWriter(out, fieldnames=columns, restval="", extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
 
@@ -83,6 +101,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", help="serial log containing telemetry: lines")
     parser.add_argument("--out", metavar="CSV", help="write here instead of stdout")
+    parser.add_argument(
+        "--columns",
+        metavar="KEYS",
+        help="comma-separated keys to keep, for example state,resid (default: all)",
+    )
     args = parser.parse_args()
 
     try:
@@ -93,6 +116,9 @@ def main():
 
     if not rows:
         sys.exit("No telemetry: lines found")
+
+    if args.columns:
+        columns = select_columns(columns, args.columns)
 
     if args.out:
         with open(args.out, "w", newline="", encoding="utf-8") as out:
