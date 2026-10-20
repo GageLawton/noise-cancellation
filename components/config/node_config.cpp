@@ -9,8 +9,10 @@ NodeConfig NodeConfig::defaults() {
 
     std::strncpy(c.nodeName, "anc-node", kNodeNameMaxLen - 1);
 
-    c.secondaryPathTaps  = 256;  // 32ms at 8kHz, covers the loop delay (design doc 6.2)
-    c.normalizedStepSize = 0.1f;
+    c.secondaryPathTaps = 256;  // 32ms at 8kHz, covers the loop delay (design doc 6.2)
+    // Small on purpose: with ~20 ms of loop delay, FxLMS goes unstable a
+    // little above 0.015 (test_fxlms_canceller shows 0.1 diverging).
+    c.normalizedStepSize = 0.005f;
     c.dmaBlockSamples    = 32;  // 4ms at 8kHz
 
     c.probeDurationMs      = 300;

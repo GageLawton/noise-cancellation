@@ -47,7 +47,7 @@ private:
     };
 
     float sampleRateHz_;
-    anc::FirFilter<128> path_;
+    anc::FirFilter<1024> path_;  // room for the firmware's ~200-sample loop delay
     Hum hums_[kMaxHums]{};
     std::size_t numHums_ = 0;
     unsigned long n_     = 0;  // sample counter for the hums
