@@ -21,8 +21,8 @@ each setting; those operations are not all implemented in the current firmware.
 
 | Key | Default | Allowed values | What it does |
 |---|---|---|---|
-| `secondary_path_taps` | `128` | Whole number from 8 through 1024, inclusive. | Number of weights in the speaker-to-microphone model. At 8 kHz, 128 taps span 16 ms of sampled history. |
-| `normalized_step_size` | `0.1` | Greater than 0 and less than 2; endpoints excluded. | Learning-rate setting for the planned normalized adaptive filter. Larger adjustments are faster but can be less stable. |
+| `secondary_path_taps` | `256` | Whole number from 8 through 1024, inclusive. | Number of weights in the speaker-to-microphone model. At 8 kHz, 256 taps span 32 ms, which has to cover the whole loop delay from output to mic (about 20 ms plus the acoustic distance; see [design doc 6.2](design.md#62-latency-budget)). Calibration warns if fewer than 64 taps (8 ms) are left after the measured peak, since the speaker keeps ringing after it. Bench check #110 will show whether 256 is enough for your room. |
+| `normalized_step_size` | `0.005` | Greater than 0 and less than 2; endpoints excluded. | Learning rate of the FxLMS canceller. Larger values adapt faster but can go unstable. The firmware's ~20 ms loop delay is what limits it: in simulation the canceller diverges a little above 0.015, so the default leaves a wide margin and still settles in about a second. |
 | `dma_block_samples` | `32` | Whole number from 8 through 256, inclusive. | Number of samples in an audio transfer batch. At 8 kHz, 32 samples represent 4 ms. |
 
 ## calibration
@@ -53,6 +53,29 @@ firmware have no `output` section; the defaults are used.
 | `ceiling` | `0.8` | Greater than 0 and at most 1.0. | Limiter ceiling: the largest output level (as a fraction of full scale) allowed to reach the amplifier. Protects the speaker and keeps the amp out of clipping. |
 | `test_tone_hz` | `440.0` | Greater than 0 and less than 4000 Hz (half the 8000 Hz sample rate); endpoints excluded. | Frequency of the M3 test tone. |
 | `test_tone_amplitude` | `0.1` | Greater than 0 and at most `ceiling`. | Level of the M3 test tone, as a fraction of full scale. |
+
+## Changing settings from the serial monitor
+
+With the board connected, open the monitor (`idf.py -p PORT monitor`, the same in bash and PowerShell) and type a command, then press Enter. The monitor doesn't show what you type, so the firmware repeats each command back after `> `. Telemetry lines keep printing in between, which is fine.
+
+| Command | What it does |
+|---|---|
+| `get <key>` | Shows the current value, for example `get dsp.normalized_step_size`. |
+| `set <key> <value>` | Changes a value. Out-of-range values are rejected, with the same rules as `node.json`. The change applies at the next calibration. |
+| `recal` | Calibrates again now, which also applies any `set` changes. |
+| `save` | Writes the settings to `/cfg/node.json`, so they survive a reboot. It saves everything you `set`, even changes the node hasn't started using yet. The node then recalibrates, because writing flash briefly pauses the audio. |
+| `help` | Lists the commands. |
+
+Keys use the `section.key` names from the tables above. `identity.node_name` and `tracking.initial_freq_hz` can't be set this way yet. `output.test_tone_hz`, `output.test_tone_amplitude` and `dsp.dma_block_samples` are only read at boot, so for those, `save` and reboot.
+
+A typical session:
+
+```
+get dsp.normalized_step_size
+set dsp.normalized_step_size 0.004
+recal
+save
+```
 
 ## Rules involving multiple settings
 

@@ -15,7 +15,8 @@ void test_sets_step_size() {
 void test_invalid_value_keeps_old_one() {
     anc::NodeConfig cfg = anc::NodeConfig::defaults();
     TEST_ASSERT_FALSE(anc::applySetting(cfg, "dsp.normalized_step_size", "2.5"));
-    TEST_ASSERT_EQUAL_FLOAT(0.1f, cfg.normalizedStepSize);
+    TEST_ASSERT_EQUAL_FLOAT(anc::NodeConfig::defaults().normalizedStepSize,
+                            cfg.normalizedStepSize);
 }
 
 void test_unknown_key_is_rejected() {
@@ -56,7 +57,7 @@ void test_formats_default_step_size() {
     char out[16];
     TEST_ASSERT_TRUE(
         anc::formatSetting(cfg, "dsp.normalized_step_size", out, sizeof(out)));
-    TEST_ASSERT_EQUAL_STRING("0.100", out);
+    TEST_ASSERT_EQUAL_STRING("0.005", out);
 }
 
 void test_formats_default_block_size() {
@@ -90,7 +91,16 @@ void test_set_then_get_round_trips() {
     TEST_ASSERT_TRUE(anc::applySetting(cfg, "dsp.normalized_step_size", "0.25"));
     TEST_ASSERT_TRUE(
         anc::formatSetting(cfg, "dsp.normalized_step_size", out, sizeof(out)));
-    TEST_ASSERT_EQUAL_STRING("0.250", out);
+    TEST_ASSERT_EQUAL_STRING("0.25", out);
+}
+
+void test_small_step_size_keeps_its_digits() {
+    anc::NodeConfig cfg = anc::NodeConfig::defaults();
+    char out[16];
+    TEST_ASSERT_TRUE(anc::applySetting(cfg, "dsp.normalized_step_size", "0.0025"));
+    TEST_ASSERT_TRUE(
+        anc::formatSetting(cfg, "dsp.normalized_step_size", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("0.0025", out);
 }
 
 }  // namespace
@@ -108,5 +118,6 @@ int main() {
     RUN_TEST(test_format_unknown_key_is_false);
     RUN_TEST(test_format_too_small_buffer_is_false);
     RUN_TEST(test_set_then_get_round_trips);
+    RUN_TEST(test_small_step_size_keeps_its_digits);
     return UNITY_END();
 }

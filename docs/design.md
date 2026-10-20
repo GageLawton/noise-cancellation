@@ -135,8 +135,8 @@ typedef struct {
 } NodeStatus;
 
 typedef struct {
-    uint16_t secondary_path_taps;   // SecondaryPath model length, default 128
-    float    normalized_step_size;  // NormalizedStepSize, dimensionless, starting value 0.1
+    uint16_t secondary_path_taps;   // SecondaryPath model length, default 256
+    float    normalized_step_size;  // NormalizedStepSize, dimensionless, starting value 0.005
     bool     trigger_recalibration;
 } NodeConfig;
 
@@ -162,8 +162,8 @@ typedef struct {
     "node_name": "node-1"
   },
   "dsp": {
-    "secondary_path_taps": 128,
-    "normalized_step_size": 0.1,
+    "secondary_path_taps": 256,
+    "normalized_step_size": 0.005,
     "dma_block_samples": 32
   },
   "calibration": {
@@ -228,7 +228,7 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 | FilterWeights | Adaptive amplitude/phase weights FxLMS tunes each sample — this is "the filter" |
 | FilteredReference | ReferenceBasis passed through SecondaryPath, used only for the weight-update math, not for driving the speaker |
 | RunningPower | Exponential moving average of FilteredReference², updated every sample |
-| NormalizedStepSize | Dimensionless tuning constant, stability-bounded in (0, 2). **Starting value: 0.1** — conservative fraction of the stability ceiling; tune up (0.3–0.5) for faster convergence or down (0.05) if residual jitter appears |
+| NormalizedStepSize | Dimensionless tuning constant. Plain NLMS is stable in (0, 2), but the loop delay (Section 6.2) lowers the real ceiling a lot: with ~180 samples of delay, the canceller diverges a little above 0.015 in simulation (`test_fxlms_canceller`). **Starting value: 0.005**, about a third of that ceiling, which still settles in about a second; tune down if residual jitter appears, and only up with care |
 | ε | Small fixed regularization constant (e.g. 1e-6) preventing division blowup when RunningPower is near zero (startup, post-mute) |
 | MicSignal | The error signal FxLMS minimizes |
 
@@ -236,7 +236,7 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 
 - Sample rate: 8kHz
 - **FxLMS FilterWeights: 2 per tracked tone** (amplitude/phase of the synthesized sinusoid) — small by design, a consequence of the synthesized-reference decision, not a general-purpose FIR
-- **SecondaryPath model length: 128 taps (16ms at 8kHz), separate parameter from FxLMS's weights.** Must be long enough to represent the true round-trip loop delay (mic→compute→DAC→amp→acoustic travel), or FxLMS and EstimatedNoise reconstruction both become inaccurate regardless of other tuning. See Section 6.2 (Latency Budget) for sizing rationale — 128 is a safe starting default, verified against the calibration probe's actual measured impulse response once hardware exists, not assumed correct
+- **SecondaryPath model length: 256 taps (32ms at 8kHz), separate parameter from FxLMS's weights.** Must be long enough to represent the true round-trip loop delay (mic→compute→DAC→amp→acoustic travel), or FxLMS and EstimatedNoise reconstruction both become inaccurate regardless of other tuning. See Section 6.2 (Latency Budget) for sizing rationale — the first estimate of 128 taps left out the firmware's own buffering, which alone is about 20 ms. 256 is the starting default, still to be verified against the calibration probe's actual measured impulse response (issue #110)
 - Reference signal: synthesized sine/cosine per tracked tone, not acoustically sourced — no dedicated reference mic
 - **Calibration vs alignment (terminology):**
   - **Calibration** — discrete, muted event that measures SecondaryPath (`S(z)`). Responds to an actual physical/location/environment change. States: `CALIBRATE_SECONDARY_PATH` (first boot, no SecondaryPath exists yet) and `RECHECK_SECONDARY_PATH` (triggered recalibration, same mechanism).
@@ -256,16 +256,18 @@ Normalized over a fixed step size because FilteredReference's power shifts acros
 ### 6.2 Latency Budget
 Unlike the broadband case ruled out in Section 1 (~1ms causality ceiling, since an acoustic reference mic requires the reference to arrive before the disturbance it's cancelling), a continuous synthesized-reference tone has no such wall — FxLMS's weights naturally learn to output the correctly phase-shifted tone to compensate for whatever the total loop delay is, as long as it's constant. **Loop latency here is not a hard ceiling — it's an input that SecondaryPath's model length has to be sized to cover.**
 
-Estimated round-trip delay (mic ADC → compute → DAC → amp → acoustic travel to mic):
+Estimated round-trip delay, as the firmware measures it during calibration (from FilterTask producing a speaker sample to FilterTask receiving the mic sample that heard it):
 | Stage | Estimate |
 |---|---|
-| I2S DMA block | 4ms (32 samples @ 8kHz, Section 6 block size decision) |
-| Core 0 compute (FxLMS + HAL) | Negligible (µs) |
-| DAC/amp output buffering | Sub-ms, negligible |
+| Output ring lead: FilterTask runs 2 blocks ahead of the speaker, so a late block doesn't leave a gap | 8ms |
+| I2S TX DMA: a write lands in the buffer that has just finished playing, so it plays (buffers − 1) blocks later; 3 buffers | 8ms |
+| I2S RX DMA block: a mic sample reaches FilterTask only once its whole 32-sample block is in | 4ms |
+| Core 0 compute (FxLMS + HAL) | Negligible (µs), hidden inside the ring lead |
+| DAC/amp and mic internal filters | Sub-ms |
 | Acoustic travel, speaker→mic (0.5–2m @ ~343 m/s) | 1.5–6ms |
-| **Total (estimated)** | **~5–15ms** |
+| **Total (estimated)** | **~22–26ms (175–210 samples)** |
 
-At 8kHz, 15ms is 120 samples — this is why SecondaryPathTaps defaults to 128 (Section 6, above): it needs to fully span the actual delay with margin, or the model can't represent it at all. **This estimate must be confirmed empirically** once hardware exists, by inspecting the calibration probe's measured impulse response directly (Section 9 validation tooling applies here too) — 128 is a safe starting point, not a substitute for measuring the real number.
+The first version of this table listed only one DMA block and estimated 5–15ms. The firmware's own buffering adds about 20ms on its own, and that part can't shrink much without risking gaps in the audio. That's why SecondaryPathTaps defaults to **256** (32ms): it needs to span the actual delay with margin, or the model can't represent it at all. Two things keep the delay constant, which the tonal canceller relies on. AudioIOTask drops stale output after an underrun, so the ring lead never grows, and the I2S driver runs with 3 DMA buffers instead of ESP-IDF's default 6, which keeps the delay short. **The total must still be confirmed empirically** by inspecting the calibration probe's measured impulse response (issue #110). Calibration logs a warning if the peak lands in the last quarter of the taps.
 
 ## 7. Development Environment
 - Toolchain: ESP-IDF (not Arduino framework) — raw DMA/I2S timing control required
@@ -425,7 +427,7 @@ Each milestone is independently runnable — nothing is written that can't be ex
 | **M1** | Boot path, no audio | Device boots, loads JSON config (falls back to defaults on first flash), spawns all tasks, `TelemetryTask` prints state at 1Hz |
 | **M2** | Audio plumbing end-to-end | Mic → `AudioIOTask` → ring buffer → `FilterTask` → ring buffer → speaker. `FilterTask` just passes through or outputs silence. DMA timing verified, no dropouts, `AlignmentTask` receiving samples |
 | **M3** | Output path proven | `FilterTask` emits a fixed-frequency sine. Confirms speaker/amp/level/soft-clip path works before any adaptive math exists |
-| **M4** | Calibration | Probe signal plays, impulse response captured, FIR estimate computed. Inspect measured delay here to confirm SecondaryPathTaps=128 (Section 6.2 open item) |
+| **M4** | Calibration | Probe signal plays, impulse response captured, FIR estimate computed. Inspect measured delay here to confirm SecondaryPathTaps=256 (Section 6.2 open item) |
 | **M5** | Cancellation | `FxlmsCanceller` filled in. Host tests first (synthetic tone, known SecondaryPath), then on-device against a real tone. First real dB measurement on the bench rig |
 | **M6** | Alignment | `Reconstructor`, `Pll` bank, `DriftDetector` filled in. Continuous tracking, correlation-triggered calibration, self-lock guards |
 | **M7** | Multi-node prep | Wired GPIO sync line, coordinator/peer interface exercised with node #1 alone playing both roles |
@@ -436,4 +438,4 @@ M1–M3 are the thin end-to-end skeleton — every task, buffer, and state trans
 - [ ] Measure the target environment before picking a tone — record ambient audio at the deployment spot with the external mic, FFT it (Section 9.2 tooling), identify actual peaks, harmonics, and tone-vs-noise-floor strength. `initial_freq_hz` defaults to 60.0 (US mains hum) as a tracker starting hint only; the PLL walks to the real tone regardless, and the config value is editable without a rebuild
 - [ ] Calibration trigger tuning (correlation threshold, window length, backstop interval, cooldown — all bench-tuning parameters, defaults not yet set)
 - [ ] Self-lock safeguard tuning (max plausible drift rate for rate limiting, "watch" correlation threshold — bench-tuning parameters, defaults not yet set)
-- [ ] Confirm SecondaryPathTaps=128 default against measured round-trip delay once hardware exists (Section 6.2 estimate, not yet empirically verified)
+- [ ] Confirm SecondaryPathTaps=256 default against measured round-trip delay once hardware exists (Section 6.2 estimate, not yet empirically verified)

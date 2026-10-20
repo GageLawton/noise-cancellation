@@ -21,6 +21,9 @@ public:
 private:
     static constexpr std::size_t kMaxBlock = 256;  // dma_block_samples' upper limit
 
+    // Frees both channels after a failed init.
+    void release();
+
     i2s_chan_handle_t tx_ = nullptr;
     i2s_chan_handle_t rx_ = nullptr;
     int32_t rawIn_[kMaxBlock]{};

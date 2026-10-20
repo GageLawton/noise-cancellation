@@ -11,6 +11,21 @@ constexpr const char* kTag = "i2s_io";
 
 }  // namespace
 
+void I2sAudioIo::release() {
+    // Undo a half-finished init, so the next try can open port 0 again.
+    // Disabling a channel that was never enabled just returns an error.
+    if (tx_ != nullptr) {
+        i2s_channel_disable(tx_);
+        i2s_del_channel(tx_);
+        tx_ = nullptr;
+    }
+    if (rx_ != nullptr) {
+        i2s_channel_disable(rx_);
+        i2s_del_channel(rx_);
+        rx_ = nullptr;
+    }
+}
+
 bool I2sAudioIo::init(const I2sSettings& settings) {
     // One port, master, with a TX handle (amp) and an RX handle (mic).
     // Opening both together makes them share BCLK and WS.
@@ -41,28 +56,36 @@ bool I2sAudioIo::init(const I2sSettings& settings) {
                 .invert_flags = {},
             },
     };
+    // The amp plays the average of left and right, so send the mono signal
+    // to both slots. Sending only the left slot would make it 6 dB quieter.
+    i2s_std_config_t txCfg   = stdCfg;
+    txCfg.slot_cfg.slot_mask = I2S_STD_SLOT_BOTH;
     // The mic's L/R pin is tied to GND, so it talks in the left slot.
     stdCfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
 
-    err = i2s_channel_init_std_mode(tx_, &stdCfg);
+    err = i2s_channel_init_std_mode(tx_, &txCfg);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "TX init failed: %s", esp_err_to_name(err));
+        release();
         return false;
     }
     err = i2s_channel_init_std_mode(rx_, &stdCfg);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "RX init failed: %s", esp_err_to_name(err));
+        release();
         return false;
     }
 
     err = i2s_channel_enable(tx_);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "TX enable failed: %s", esp_err_to_name(err));
+        release();
         return false;
     }
     err = i2s_channel_enable(rx_);
     if (err != ESP_OK) {
         ESP_LOGE(kTag, "RX enable failed: %s", esp_err_to_name(err));
+        release();
         return false;
     }
 
