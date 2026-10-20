@@ -39,6 +39,10 @@ constexpr uint32_t kFadeTimeoutMs           = 200;  // the fade itself is 50 ms
 // indistinguishable from noise (see doCalibrate).
 constexpr float kMinPeakToRms = 5.0f;
 
+// Calibration warns when fewer taps than this (8 ms at 8 kHz) follow the
+// peak, because the speaker's ring after the peak wouldn't fit.
+constexpr std::size_t kMinTailTaps = 64;
+
 // The mic level meter falls 20 dB per second (250 blocks).
 constexpr float kMicMeterFallDbPerBlock = 20.0f / 250.0f;
 
@@ -280,12 +284,16 @@ NodeState NodeRuntime::doCalibrate() {
                  "calibration: no clear peak -- is the speaker playing and "
                  "the mic connected?");
     }
-    // If the peak sits near the end, the tail of the response probably
-    // doesn't fit, and the canceller would work from a cut-off model.
-    if (peak.index >= taps * 3 / 4) {
+    // The peak always sits a fixed delay in (about 160 samples of buffering
+    // plus the acoustic path), so what matters is how much room is left after
+    // it. A small speaker rings for a while at low hums; with fewer than 8 ms
+    // of taps after the peak, the canceller works from a cut-off model.
+    if (peak.index + kMinTailTaps > taps) {
         ESP_LOGW(kTag,
-                 "calibration: peak is near the last tap; raise "
-                 "dsp.secondary_path_taps");
+                 "calibration: peak at tap %u leaves under %u taps for the "
+                 "speaker's ring; raise dsp.secondary_path_taps",
+                 static_cast<unsigned>(peak.index),
+                 static_cast<unsigned>(kMinTailTaps));
     }
 
     // One line per tap, for tools/ir_from_log.py.
