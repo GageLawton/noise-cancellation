@@ -6,8 +6,8 @@ Usage:
 """
 
 import argparse
-import math
 import json
+import math
 import sys
 import wave
 
@@ -32,7 +32,7 @@ def summarize(path):
     # Cast before squaring or taking abs, avoiding 16-bit integer overflow.
     samples = np.frombuffer(raw, dtype="<i2").astype(np.float64) / 32768.0
     peak = float(np.max(np.abs(samples))) if samples.size else 0.0
-    rms = float(np.sqrt(np.mean(samples ** 2))) if samples.size else 0.0
+    rms = float(np.sqrt(np.mean(samples**2))) if samples.size else 0.0
     return {
         "file": str(path),
         "channels": channels,
@@ -58,9 +58,9 @@ def main():
         sys.exit(f"Cannot summarize WAV: {error}")
 
     if args.json:
-        json_info={
-            key:None if isinstance(value,float)and math.isinf(value)else value
-            for key,value in info.items()
+        json_info = {
+            key: None if isinstance(value, float) and math.isinf(value) else value
+            for key, value in info.items()
         }
         print(json.dumps(json_info))
         return

@@ -73,11 +73,17 @@ def test_cli_prints_metadata_and_levels(tmp_path):
     write_wav(path, np.full(8000, 16384, dtype="<i2").tobytes())
     result = subprocess.run(
         [sys.executable, str(Path(__file__).with_name("wav_info.py")), str(path)],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     assert result.stdout.splitlines() == [
-        f"file:        {path}", "channels:    1", "sample rate: 8000 Hz",
-        "duration:    1.00 s", "peak:        -6.0 dBFS", "rms:         -6.0 dBFS",
+        f"file:        {path}",
+        "channels:    1",
+        "sample rate: 8000 Hz",
+        "duration:    1.00 s",
+        "peak:        -6.0 dBFS",
+        "rms:         -6.0 dBFS",
     ]
 
 
@@ -86,7 +92,9 @@ def test_cli_reports_unsupported_width_without_traceback(tmp_path):
     write_wav(path, b"\x80" * 8000, width=1)
     result = subprocess.run(
         [sys.executable, str(Path(__file__).with_name("wav_info.py")), str(path)],
-        check=False, capture_output=True, text=True,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     assert result.returncode != 0
     assert "expected 16-bit PCM" in result.stderr
