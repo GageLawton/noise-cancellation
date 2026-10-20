@@ -95,6 +95,8 @@ NodeState NodeRuntime::doBoot() {
     for (int i = 0; i < config_.numTones; ++i) {
         s.trackedFreqHz[i] = config_.initialFreqHz[i];
         s.freqLocked[i]    = false;
+        // Telemetry shows the starting hint until tracking takes over.
+        trackedFreqHz_[i].store(config_.initialFreqHz[i], std::memory_order_relaxed);
     }
     s.timestampMs = nowMs();
     status_.publish(s);
@@ -131,6 +133,22 @@ bool NodeRuntime::fadeTo(float gain) {
     const uint32_t t0 = nowMs();
     while (outputGain_.load(std::memory_order_relaxed) != gain) {
         if (nowMs() - t0 > kFadeTimeoutMs) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    return true;
+}
+
+void NodeRuntime::configureAlignment() {
+    alignCfg_ = config_;
+    alignConfigPending_.store(true, std::memory_order_release);
+}
+
+bool NodeRuntime::waitForAlignmentIdle() {
+    const uint32_t t0 = nowMs();
+    while (alignConfigPending_.load(std::memory_order_acquire)) {
+        if (nowMs() - t0 > kFilterResponseTimeoutMs) {
             return false;
         }
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -189,7 +207,12 @@ NodeState NodeRuntime::doCalibrate() {
     }
 
     // 4. Estimate the impulse response. FilterTask has stopped writing the
-    //    recording (it is full), so reading it here is safe.
+    //    recording (it is full), so reading it here is safe. AlignmentTask
+    //    reads secondaryPath_ while it configures, so let it finish first.
+    if (!waitForAlignmentIdle()) {
+        ESP_LOGE(kTag, "calibration: AlignmentTask not responding");
+        return NodeState::Fault;
+    }
     const auto& rec = probe_.recording();
     const std::size_t taps =
         std::min<std::size_t>(config_.secondaryPathTaps, kMaxSecondaryPathTaps);
@@ -226,6 +249,8 @@ NodeState NodeRuntime::doCalibrate() {
     for (std::size_t k = 0; k < taps; ++k) {
         ESP_LOGI(kTag, "ir,%u,%.6f", static_cast<unsigned>(k), secondaryPath_[k]);
     }
+
+    configureAlignment();
     return NodeState::Run;
 }
 
@@ -399,15 +424,40 @@ void NodeRuntime::filterLoop() {
 }
 
 void NodeRuntime::alignmentLoop() {
+    bool configured = false;  // nothing to track before the first calibration
+
     for (;;) {
+        if (alignConfigPending_.load(std::memory_order_acquire)) {
+            align_.configure(alignCfg_, secondaryPath_, secondaryPathTaps_);
+            configured = true;
+            alignConfigPending_.store(false, std::memory_order_release);
+        }
+
         SamplePair pair{};
         uint32_t received = 0;
         while (alignRing_.pop(pair)) {
-            ++received;  // no processing yet; the engine arrives in M6
+            if (configured) {
+                align_.update(pair.mic, pair.synth);
+            }
+            ++received;
         }
         if (received > 0) {
             alignSamples_.fetch_add(received, std::memory_order_relaxed);
         }
+
+        if (configured) {
+            for (std::size_t t = 0; t < align_.numTones(); ++t) {
+                trackedFreqHz_[t].store(align_.frequencyHz(t),
+                                        std::memory_order_relaxed);
+                trackedLocked_[t].store(align_.locked(t), std::memory_order_relaxed);
+            }
+            alignCorrelation_.store(align_.correlation(), std::memory_order_relaxed);
+            alignLowConfidence_.store(align_.lowConfidence(),
+                                      std::memory_order_relaxed);
+            alignNeedsCalibration_.store(align_.needsCalibration(),
+                                         std::memory_order_relaxed);
+        }
+
         // 5 ms is 40 pairs; the ring holds 2047.
         vTaskDelay(pdMS_TO_TICKS(5));
     }
@@ -418,13 +468,17 @@ void NodeRuntime::telemetryLoop() {
         NodeStatus s = status_.read();
         ESP_LOGI(
             "telemetry",
-            "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d clip=%u "
-            "blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS",
+            "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
+            "recal=%d "
+            "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS",
             toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
-            s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
-            s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
+            trackedFreqHz_[0].load(std::memory_order_relaxed),
+            static_cast<int>(trackedLocked_[0].load(std::memory_order_relaxed)),
+            alignCorrelation_.load(std::memory_order_relaxed),
+            static_cast<int>(alignLowConfidence_.load(std::memory_order_relaxed)),
+            static_cast<int>(alignNeedsCalibration_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(clipEvents_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(blocksProcessed_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(filterBlocks_.load(std::memory_order_relaxed)),
