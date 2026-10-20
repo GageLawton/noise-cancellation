@@ -227,6 +227,11 @@ private:
     // AudioIOTask wakes FilterTask with a task notification after each mic
     // block, so FilterTask starts at once instead of polling.
     TaskHandle_t filterTask_ = nullptr;
+    // For the stack report in telemetryLoop(). Set once in spawnTasks(),
+    // well before telemetry's first report 10 s later.
+    TaskHandle_t audioIoTask_   = nullptr;
+    TaskHandle_t alignmentTask_ = nullptr;
+    TaskHandle_t configTask_    = nullptr;
 };
 
 }  // namespace anc
