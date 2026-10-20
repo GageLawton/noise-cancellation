@@ -186,6 +186,12 @@ private:
     std::atomic<float> alignCorrelation_{0.0f};
     std::atomic<bool> alignLowConfidence_{false};
     std::atomic<bool> alignNeedsCalibration_{false};
+    // Level of just the hum at the tracked frequency, for telemetry. The
+    // buffer collects 100 ms of mic samples; only AlignmentTask touches it.
+    static constexpr std::size_t kHumSamples = 800;  // 100 ms at 8 kHz
+    float humBuf_[kHumSamples]{};
+    std::size_t humCount_ = 0;
+    std::atomic<float> humDbfs_{-120.0f};
 
     // Where each tone starts after a calibration: the last locked
     // frequency if there is one, else the config's hint. Set at the start
