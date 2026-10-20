@@ -1,8 +1,11 @@
 #pragma once
 
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 #include "anc/config_store.hpp"
+#include "anc/i2s_audio_io.hpp"
 #include "anc/node_config.hpp"
 #include "anc/node_state.hpp"
 #include "anc/node_status.hpp"
@@ -11,8 +14,8 @@ namespace anc {
 
 // Owns the node's lifecycle: config, state machine, and task setup.
 //
-// M1 scope: boot through config load and task spawn. Audio and DSP
-// tasks are stubs until M2/M3 -- see design doc section 10.4.
+// Audio runs in its own task (see audioIoLoop). The DSP stages are filled
+// in milestone by milestone -- see design doc section 10.4.
 class NodeRuntime {
 public:
     // Runs Boot -> InitHal -> ... and spawns tasks. Does not return
@@ -33,6 +36,13 @@ private:
 
     void spawnTasks();
 
+    // AudioIOTask body: read a mic block, write a speaker block, repeat.
+    // The blocking I2S read paces it at the sample rate.
+    void audioIoLoop();
+
+    // Samples per audio block: 4 ms at 8 kHz, the same as the DMA block.
+    static constexpr std::size_t kBlockSamples = 32;
+
     // Reads the factory-burned MAC and folds it into a 64-bit id.
     static uint64_t deriveNodeId();
 
@@ -41,6 +51,10 @@ private:
     NodeState state_ = NodeState::Boot;
     NodeStatusStore status_;
     uint64_t nodeId_ = 0;
+
+    I2sAudioIo audio_;
+    bool halReady_ = false;  // set once I2S is up and the tasks are running
+    std::atomic<uint32_t> blocksProcessed_{0};  // audio blocks read and written
 };
 
 }  // namespace anc
