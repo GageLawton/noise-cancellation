@@ -84,8 +84,10 @@ NodeState NodeRuntime::doBoot() {
 }
 
 NodeState NodeRuntime::doInitHal() {
-    // M2: bring up I2S in/out and the GPIO sync line here.
-    ESP_LOGI(kTag, "HAL init (stub -- no audio until M2)");
+    if (!audio_.init(defaultI2sSettings())) {
+        ESP_LOGE(kTag, "I2S init failed, check the mic and amp wiring");
+        return NodeState::Fault;
+    }
     return NodeState::CalibrateSecondaryPath;
 }
 
@@ -105,6 +107,23 @@ NodeState NodeRuntime::doRun() {
     return NodeState::Run;
 }
 
+void NodeRuntime::audioIoLoop() {
+    float mic[kBlockSamples];
+    float out[kBlockSamples] = {};  // silence until FilterTask exists
+
+    for (;;) {
+        const std::size_t n = audio_.readBlock(mic, kBlockSamples);
+        if (n == 0) {
+            // A failed read returns at once. Without this delay the task
+            // would spin and starve everything below it on this core.
+            vTaskDelay(1);
+            continue;
+        }
+        audio_.writeBlock(out, n);
+        blocksProcessed_.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
 void NodeRuntime::spawnTasks() {
     // TelemetryTask: 1Hz status over UART. Non-real-time, core 1.
     xTaskCreatePinnedToCore(
@@ -113,19 +132,26 @@ void NodeRuntime::spawnTasks() {
             for (;;) {
                 NodeStatus s = self->status().read();
                 ESP_LOGI("telemetry",
-                         "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u",
+                         "state=%s conv=%d resid=%.6f freq=%.2f lock=%d clip=%u "
+                         "blocks=%u",
                          toString(s.state), static_cast<int>(s.converged),
                          s.residualPower, s.numTones > 0 ? s.trackedFreqHz[0] : 0.0f,
                          s.numTones > 0 ? static_cast<int>(s.freqLocked[0]) : 0,
-                         static_cast<unsigned>(s.clipEvents));
+                         static_cast<unsigned>(s.clipEvents),
+                         static_cast<unsigned>(
+                             self->blocksProcessed_.load(std::memory_order_relaxed)));
                 vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
             }
         },
         "telemetry", 4096, this, 2, nullptr, kNonRealtimeCore);
 
-    // M2 adds AudioIOTask + FilterTask on kRealtimeCore at high priority,
-    // and AlignmentTask on kNonRealtimeCore.
-    ESP_LOGI(kTag, "tasks spawned (audio/filter/alignment pending M2)");
+    // AudioIOTask: the only task that touches I2S. Real-time core, just
+    // below the top priority (ESP-IDF's IPC tasks keep the very top).
+    xTaskCreatePinnedToCore(
+        [](void* arg) { static_cast<NodeRuntime*>(arg)->audioIoLoop(); }, "audio_io",
+        4096, this, configMAX_PRIORITIES - 2, nullptr, kRealtimeCore);
+
+    ESP_LOGI(kTag, "tasks spawned (filter/alignment pending M2)");
 }
 
 void NodeRuntime::start() {
@@ -141,7 +167,10 @@ void NodeRuntime::start() {
 
             case NodeState::InitHal:
                 next = doInitHal();
-                spawnTasks();  // once HAL exists, tasks can run
+                if (next != NodeState::Fault) {
+                    halReady_ = true;
+                    spawnTasks();  // once HAL exists, tasks can run
+                }
                 break;
 
             case NodeState::CalibrateSecondaryPath:
@@ -160,7 +189,10 @@ void NodeRuntime::start() {
 
             case NodeState::SafeMute:
                 vTaskDelay(pdMS_TO_TICKS(config_.cooldownMs));
-                next = NodeState::CalibrateSecondaryPath;
+                // Without working I2S there is nothing to calibrate, so
+                // try bringing the HAL up again instead.
+                next =
+                    halReady_ ? NodeState::CalibrateSecondaryPath : NodeState::InitHal;
                 break;
         }
 

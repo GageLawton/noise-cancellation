@@ -91,3 +91,47 @@ def test_cli_reports_unsupported_width_without_traceback(tmp_path):
     assert result.returncode != 0
     assert "expected 16-bit PCM" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_cli_json_output(tmp_path):
+    import json
+
+    path = tmp_path / "half.wav"
+    write_wav(path, np.full(8000, 16384, dtype="<i2").tobytes())
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("wav_info.py")),
+            str(path),
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    info = json.loads(result.stdout)
+    assert info["sample_rate"] == 8000
+
+
+def test_cli_json_silence_uses_null(tmp_path):
+    import json
+
+    path = tmp_path / "silence.wav"
+    write_wav(path, np.zeros(8000, dtype="<i2").tobytes())
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("wav_info.py")),
+            str(path),
+            "--json",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    info = json.loads(result.stdout)
+    assert info["peak_dbfs"] is None
