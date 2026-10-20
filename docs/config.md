@@ -42,6 +42,7 @@ each setting; those operations are not all implemented in the current firmware.
 | `initial_freq_hz` | `[60.0]` | Array of 1 to 4 frequencies; each greater than 0 and less than 4000 Hz. | Starting hints for the frequency trackers. The array length determines the number of active tones. |
 | `max_drift_rate_hz_per_sec` | `2.0` | Greater than 0; validation sets no upper bound. | Limits how quickly a tracked frequency is allowed to change. |
 | `watch_correlation_threshold` | `0.15` | Greater than 0 and strictly less than `calibration.correlation_threshold`. | Earlier warning threshold intended to mark frequency tracking as low-confidence. |
+| `min_lock_amplitude` | `0.1` | Greater than 0 and at most 1. | Smallest hum amplitude, as a fraction of full scale, at which the tracker reports a lock; 0.1 is about -20 dBFS. |
 
 ## output
 

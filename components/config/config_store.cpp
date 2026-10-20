@@ -114,6 +114,7 @@ bool parseJson(const char* text, NodeConfig& cfg) {
         }
         readFloat(trk, "max_drift_rate_hz_per_sec", cfg.maxDriftRateHzPerSec);
         readFloat(trk, "watch_correlation_threshold", cfg.watchCorrelationThreshold);
+        readFloat(trk, "min_lock_amplitude", cfg.minLockAmplitude);
     }
 
     // Files from older firmware have no "output" section; the defaults stay.
@@ -154,6 +155,7 @@ CjsonStringPtr serializeJson(const NodeConfig& cfg) {
     cJSON_AddNumberToObject(trk, "max_drift_rate_hz_per_sec", cfg.maxDriftRateHzPerSec);
     cJSON_AddNumberToObject(trk, "watch_correlation_threshold",
                             cfg.watchCorrelationThreshold);
+    cJSON_AddNumberToObject(trk, "min_lock_amplitude", cfg.minLockAmplitude);
 
     cJSON* out = cJSON_AddObjectToObject(root.get(), "output");
     cJSON_AddNumberToObject(out, "ceiling", cfg.outputCeiling);

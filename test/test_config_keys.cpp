@@ -44,6 +44,14 @@ void test_sets_output_ceiling() {
     TEST_ASSERT_EQUAL_FLOAT(0.5f, cfg.outputCeiling);
 }
 
+void test_sets_min_lock_amplitude() {
+    anc::NodeConfig cfg = anc::NodeConfig::defaults();
+    TEST_ASSERT_TRUE(anc::applySetting(cfg, "tracking.min_lock_amplitude", "0.05"));
+    TEST_ASSERT_EQUAL_FLOAT(0.05f, cfg.minLockAmplitude);
+    TEST_ASSERT_FALSE(anc::applySetting(cfg, "tracking.min_lock_amplitude", "2"));
+    TEST_ASSERT_EQUAL_FLOAT(0.05f, cfg.minLockAmplitude);
+}
+
 void test_sets_integer_fields() {
     anc::NodeConfig cfg = anc::NodeConfig::defaults();
     TEST_ASSERT_TRUE(anc::applySetting(cfg, "dsp.dma_block_samples", "64"));
@@ -112,6 +120,7 @@ int main() {
     RUN_TEST(test_unknown_key_is_rejected);
     RUN_TEST(test_unparsable_values_are_rejected);
     RUN_TEST(test_sets_output_ceiling);
+    RUN_TEST(test_sets_min_lock_amplitude);
     RUN_TEST(test_sets_integer_fields);
     RUN_TEST(test_formats_default_step_size);
     RUN_TEST(test_formats_default_block_size);
