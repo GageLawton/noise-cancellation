@@ -12,6 +12,7 @@
 #include "anc/ir_estimator.hpp"
 #include "anc/output_limiter.hpp"
 #include "anc/rms.hpp"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_timer.h"
@@ -80,6 +81,11 @@ void NodeRuntime::transitionTo(NodeState next) {
 }
 
 NodeState NodeRuntime::doBoot() {
+    // The version comes from `git describe`, so a pasted log says which
+    // code it came from.
+    const esp_app_desc_t* app = esp_app_get_description();
+    ESP_LOGI(kTag, "firmware %s, built %s %s", app->version, app->date, app->time);
+
     nodeId_ = deriveNodeId();
     ESP_LOGI(kTag, "node id %012llx", static_cast<unsigned long long>(nodeId_));
 
