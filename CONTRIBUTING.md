@@ -36,6 +36,8 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+Or run `./scripts/test.sh` (macOS and Linux) or `.\scripts\test.ps1` (Windows PowerShell), which does all three steps.
+
 ## Formatting
 
 From the repo root, before you commit:
