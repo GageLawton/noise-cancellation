@@ -54,6 +54,29 @@ firmware have no `output` section; the defaults are used.
 | `test_tone_hz` | `440.0` | Greater than 0 and less than 4000 Hz (half the 8000 Hz sample rate); endpoints excluded. | Frequency of the M3 test tone. |
 | `test_tone_amplitude` | `0.1` | Greater than 0 and at most `ceiling`. | Level of the M3 test tone, as a fraction of full scale. |
 
+## Changing settings from the serial monitor
+
+With the board connected, open the monitor (`idf.py -p PORT monitor`, the same in bash and PowerShell) and type a command, then press Enter. The monitor doesn't show what you type, so the firmware repeats each command back after `> `. Telemetry lines keep printing in between, which is fine.
+
+| Command | What it does |
+|---|---|
+| `get <key>` | Shows the current value, for example `get dsp.normalized_step_size`. |
+| `set <key> <value>` | Changes a value. Out-of-range values are rejected, with the same rules as `node.json`. The change applies at the next calibration. |
+| `recal` | Calibrates again now, which also applies any `set` changes. |
+| `save` | Writes the settings to `/cfg/node.json`, so they survive a reboot. The node then recalibrates, because writing flash briefly pauses the audio. |
+| `help` | Lists the commands. |
+
+Keys use the `section.key` names from the tables above. `identity.node_name` and `tracking.initial_freq_hz` can't be set this way yet. `output.test_tone_hz`, `output.test_tone_amplitude` and `dsp.dma_block_samples` are only read at boot, so for those, `save` and reboot.
+
+A typical session:
+
+```
+get dsp.normalized_step_size
+set dsp.normalized_step_size 0.004
+recal
+save
+```
+
 ## Rules involving multiple settings
 
 - `backstop_interval_ms >= cooldown_ms`: the maximum calibration interval cannot
