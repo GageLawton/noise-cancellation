@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from make_tone import make_tone
 from wav_info import summarize
 
 
@@ -135,3 +136,36 @@ def test_cli_json_silence_uses_null(tmp_path):
 
     info = json.loads(result.stdout)
     assert info["peak_dbfs"] is None
+
+
+def test_stereo_levels_per_channel(tmp_path):
+    import json
+
+    path = tmp_path / "left-tone.wav"
+    # Half-scale tone on the left, silence on the right.
+    write_wav(path, make_tone(120.0, 1.0, 8000, 0.5, stereo=True).tobytes(), channels=2)
+
+    left, right = summarize(path)["channels_dbfs"]
+    assert left["peak_dbfs"] == pytest.approx(20 * math.log10(0.5), abs=0.01)
+    assert left["rms_dbfs"] == pytest.approx(20 * math.log10(0.5 / math.sqrt(2)), abs=0.01)
+    assert right == {"peak_dbfs": -math.inf, "rms_dbfs": -math.inf}
+
+    script = str(Path(__file__).with_name("wav_info.py"))
+    text = subprocess.run(
+        [sys.executable, script, str(path)], check=True, capture_output=True, text=True
+    ).stdout.splitlines()
+    assert text[-2:] == [
+        "channel 1:   peak -6.0 dBFS, rms -9.0 dBFS",
+        "channel 2:   peak -inf dBFS, rms -inf dBFS",
+    ]
+
+    result = subprocess.run(
+        [sys.executable, script, str(path), "--json"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout)["channels_dbfs"][1] == {
+        "peak_dbfs": None,
+        "rms_dbfs": None,
+    }
