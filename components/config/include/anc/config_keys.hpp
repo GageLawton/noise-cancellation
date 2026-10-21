@@ -19,7 +19,7 @@ namespace config_keys {
 template <typename T>
 struct Field {
     const char* name;
-    T NodeConfig::*member;
+    T NodeConfig::* member;
 };
 
 inline constexpr Field<float> kFloatFields[] = {
