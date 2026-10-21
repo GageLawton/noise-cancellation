@@ -10,9 +10,11 @@ drives it toward zero, so measuring with it is circular.
 
 Usage:
     ./analyze.py baseline.wav cancelled.wav --freq 60
+    ./analyze.py baseline.wav cancelled.wav --json
 """
 
 import argparse
+import json
 import sys
 import wave
 
@@ -28,12 +30,16 @@ def read_wav(path):
         frames = w.readframes(w.getnframes())
     data = np.frombuffer(frames, dtype=np.int16).astype(np.float64) / 32768.0
     if channels > 1:
-        # Samples are interleaved (L, R, L, R, ...); keep only the first channel
+        # Samples are interleaved (L, R, L, R, ...); keep only the first channel.
+        # Notes go to stderr so --json output on stdout stays parseable.
         data = data.reshape(-1, channels)[:, 0]
         if channels == 2:
-            print(f"{path}: stereo file, using left channel")
+            print(f"{path}: stereo file, using left channel", file=sys.stderr)
         else:
-            print(f"{path}: {channels}-channel file, using first channel")
+            print(
+                f"{path}: {channels}-channel file, using first channel",
+                file=sys.stderr,
+            )
     return data, rate
 
 
@@ -72,6 +78,8 @@ def main():
                    help="half-width of the measurement band in Hz (default: 2.0)")
     p.add_argument("--top", type=int, default=8,
                    help="how many peaks to list in survey mode (default: 8)")
+    p.add_argument("--json", action="store_true",
+                   help="print the results as one JSON object")
     args = p.parse_args()
     if args.top <= 0:
         p.error("--top must be greater than 0")
@@ -80,8 +88,9 @@ def main():
 
     base, rate = read_wav(args.baseline)
 
-    freq = args.freq if args.freq else dominant_peak(base, rate)
-    print(f"target frequency: {freq:.2f} Hz (±{args.bandwidth:.1f} Hz)")
+    freq = float(args.freq if args.freq else dominant_peak(base, rate))
+    if not args.json:
+        print(f"target frequency: {freq:.2f} Hz (±{args.bandwidth:.1f} Hz)")
 
     if not args.cancelled:
         # Survey mode: just report what is in the room. This is step one
@@ -90,6 +99,13 @@ def main():
         freqs = np.fft.rfftfreq(len(base), 1.0 / rate)
         band = (freqs >= 20) & (freqs <= 1000)
         idx = np.argsort(spectrum[band])[-args.top:][::-1]
+        if args.json:
+            peaks = [
+                {"hz": float(freqs[band][i]), "magnitude": float(spectrum[band][i])}
+                for i in idx
+            ]
+            print(json.dumps({"freq_hz": freq, "peaks": peaks}))
+            return
         print(f"\ntop {len(idx)} peaks in baseline:")
         for i in idx:
             print(f"  {freqs[band][i]:7.2f} Hz  {spectrum[band][i]:.4f}")
@@ -106,6 +122,15 @@ def main():
         sys.exit("cancelled recording has no energy at target frequency")
 
     depth_db = 20.0 * np.log10(rms_off / rms_on)
+    if args.json:
+        print(json.dumps({
+            "freq_hz": freq,
+            "bandwidth_hz": args.bandwidth,
+            "baseline_rms": float(rms_off),
+            "cancelled_rms": float(rms_on),
+            "depth_db": float(depth_db),
+        }))
+        return
     print(f"baseline RMS:  {rms_off:.6f}")
     print(f"cancelled RMS: {rms_on:.6f}")
     print(f"cancellation depth: {depth_db:.2f} dB")
