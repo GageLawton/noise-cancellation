@@ -27,6 +27,7 @@ inline constexpr Field<float> kFloatFields[] = {
     {"calibration.correlation_threshold", &NodeConfig::correlationThreshold},
     {"tracking.max_drift_rate_hz_per_sec", &NodeConfig::maxDriftRateHzPerSec},
     {"tracking.watch_correlation_threshold", &NodeConfig::watchCorrelationThreshold},
+    {"tracking.min_lock_amplitude", &NodeConfig::minLockAmplitude},
     {"output.ceiling", &NodeConfig::outputCeiling},
     {"output.test_tone_hz", &NodeConfig::testToneHz},
     {"output.test_tone_amplitude", &NodeConfig::testToneAmplitude},
