@@ -10,9 +10,21 @@ ANC reduces an unwanted sound by generating a controlled speaker signal that mak
 
 **BCLK** (bit clock) times the individual bits on an I2S audio link. **WS** (word select, also called LRCLK) marks the boundary between audio words or channels; together they let an I2S microphone or amplifier interpret the serial data stream. The project uses an I2S microphone and amplifier as described in the [hardware design](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#3-hardware-per-node).
 
+## Biquad filter (bandpass and notch)
+
+A biquad is a small filter built from two past inputs and two past outputs, cheap enough to run on every sample. Shaped as a bandpass it keeps only a narrow band around one frequency, such as the hum; shaped as a notch it removes that band and leaves the rest; see [`biquad.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/biquad.hpp).
+
+## Burst error
+
+A burst error is a run of neighbouring bits damaged together, for example by a glitch on a wire, rather than one bit flipped on its own. An 8-bit CRC catches every burst of up to 8 bits; see [`test_crc8_bursts.cpp`](https://github.com/GageLawton/noise-cancellation/blob/main/test/test_crc8_bursts.cpp).
+
 ## Clipping
 
 Clipping happens when a signal asks for a level beyond what the output can produce, so the tops of the wave are cut flat. It sounds harsh and can stress the speaker, so the project caps every output sample at a set ceiling and counts each time that happens; see [`output_limiter.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/output_limiter.hpp).
+
+## Clock drift (ppm)
+
+No two boards' clocks run at exactly the same speed, so their idea of the time slowly drifts apart. Drift is measured in parts per million (ppm): a clock 20 ppm fast gains 20 µs every second, about 72 ms an hour, which is why nodes need a shared [sync tick](#sync-tick) to stay in step.
 
 ## Coordinator
 
@@ -21,6 +33,10 @@ The coordinator is the role that collects the status of every node, so one place
 ## Correlation (normalized)
 
 Normalized correlation measures how alike two signals are on a scale from -1 to +1: near 0 means unrelated, near +1 means the same shape, and near -1 means the same shape flipped. The project uses it to spot a copy of its own speaker output left in the estimated noise, which means the speaker-to-mic model is stale; see [`rolling_correlation.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/alignment/include/anc/rolling_correlation.hpp).
+
+## CRC (cyclic redundancy check)
+
+A CRC is a short checksum computed from a message's bytes and sent with it. The receiver computes it again, and if the two differ the message was damaged on the way and is thrown away; the project uses a one-byte CRC-8 on messages between nodes; see [`crc8.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/transport/include/anc/crc8.hpp).
 
 ## Crest factor
 
@@ -89,6 +105,14 @@ The sample rate is the number of audio samples captured or produced per second, 
 ## Secondary path
 
 The secondary path is the transfer function from the speaker, through the amplifier and acoustic environment, to the microphone. FxLMS estimates this path as `S(z)` so its updates account for how the generated signal actually returns to the error microphone; see the [signal notation](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#60-notation).
+
+## Seqlock
+
+A seqlock lets one task update a shared value while others read it, without making the writer wait. The writer bumps a counter before and after each write, and a reader that sees the counter odd or changed during its read simply tries again; `NodeStatusStore` uses one for the status snapshot; see [`node_status.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/node_runtime/include/anc/node_status.hpp).
+
+## Stack high-water mark
+
+Each task has a fixed amount of stack memory, and the high-water mark is the least of it that has ever been free. A number near zero means the task almost ran out, and running out crashes the board; the firmware prints it for every task in the `stack free:` telemetry line every 10 seconds.
 
 ## Sync tick
 
