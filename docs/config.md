@@ -23,7 +23,7 @@ each setting; those operations are not all implemented in the current firmware.
 |---|---|---|---|
 | `secondary_path_taps` | `256` | Whole number from 8 through 1024, inclusive. | Number of weights in the speaker-to-microphone model. At 8 kHz, 256 taps span 32 ms, which has to cover the whole loop delay from output to mic (about 20 ms plus the acoustic distance; see [design doc 6.2](design.md#62-latency-budget)). Calibration warns if fewer than 64 taps (8 ms) are left after the measured peak, since the speaker keeps ringing after it. Bench check #110 will show whether 256 is enough for your room. |
 | `normalized_step_size` | `0.005` | Greater than 0 and less than 2; endpoints excluded. | Learning rate of the FxLMS canceller. Larger values adapt faster but can go unstable. The firmware's ~20 ms loop delay is what limits it: in simulation the canceller diverges a little above 0.015, so the default leaves a wide margin and still settles in about a second. |
-| `dma_block_samples` | `32` | Whole number from 8 through 256, inclusive. | Number of samples in an audio transfer batch. At 8 kHz, 32 samples represent 4 ms. |
+| `dma_block_samples` | `32` | Whole number from 8 through 256, inclusive. | **Not used yet.** The firmware always moves audio in 32-sample blocks (4 ms at 8 kHz), set by `kBlockSamples` in [`node_runtime.hpp`](../components/node_runtime/include/anc/node_runtime.hpp), so changing this has no effect. The setting is read, checked and saved so a later change can use it. |
 
 ## calibration
 
@@ -67,7 +67,7 @@ With the board connected, open the monitor (`idf.py -p PORT monitor`, the same i
 | `save` | Writes the settings to `/cfg/node.json`, so they survive a reboot. It saves everything you `set`, even changes the node hasn't started using yet. The node then recalibrates, because writing flash briefly pauses the audio. |
 | `help` | Lists the commands. |
 
-Keys use the `section.key` names from the tables above. `identity.node_name` and `tracking.initial_freq_hz` can't be set this way yet. `output.test_tone_hz`, `output.test_tone_amplitude` and `dsp.dma_block_samples` are only read at boot, so for those, `save` and reboot.
+Keys use the `section.key` names from the tables above. `identity.node_name` and `tracking.initial_freq_hz` can't be set this way yet. `output.test_tone_hz` and `output.test_tone_amplitude` are only read at boot, so for those, `save` and reboot. `dsp.dma_block_samples` is saved but not used yet.
 
 A typical session:
 
