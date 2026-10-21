@@ -137,6 +137,7 @@ NodeState NodeRuntime::doBoot() {
 NodeState NodeRuntime::doInitHal() {
     if (!audio_.init(defaultI2sSettings())) {
         ESP_LOGE(kTag, "I2S init failed, check the mic and amp wiring");
+        faultCause_ = "i2s init";
         return NodeState::Fault;
     }
     tone_.emplace(kSampleRateHz, config_.testToneHz, config_.testToneAmplitude);
@@ -226,6 +227,7 @@ NodeState NodeRuntime::doCalibrate() {
     //    fade-in on the probe itself would skew the estimate.
     if (!fadeTo(0.0f) || !useProcessor(&silence_) || !fadeTo(1.0f)) {
         ESP_LOGE(kTag, "calibration: FilterTask not responding");
+        faultCause_ = "filter task";
         return NodeState::Fault;
     }
 
@@ -266,6 +268,7 @@ NodeState NodeRuntime::doCalibrate() {
     if (!finished) {
         ESP_LOGE(kTag, "calibration: probe didn't finish in %u ms",
                  static_cast<unsigned>(giveUp));
+        faultCause_ = "probe timeout";
         return NodeState::Fault;
     }
 
@@ -274,6 +277,7 @@ NodeState NodeRuntime::doCalibrate() {
     //    reads secondaryPath_ while it configures, so let it finish first.
     if (!waitForAlignmentIdle()) {
         ESP_LOGE(kTag, "calibration: AlignmentTask not responding");
+        faultCause_ = "alignment task";
         return NodeState::Fault;
     }
     const auto& rec = probe_.recording();
@@ -345,6 +349,7 @@ NodeState NodeRuntime::doRun() {
     for (;;) {
         if (diverged_.exchange(false, std::memory_order_relaxed)) {
             ESP_LOGE(kTag, "divergence detected");
+            faultCause_ = "divergence";
             return NodeState::Fault;
         }
         // Asked for at the console: skips the cooldown, since a person
@@ -491,6 +496,7 @@ void NodeRuntime::filterLoop() {
             residualDbfs_.store(amplitudeToDb(std::sqrt(canceller_.residualPower())),
                                 std::memory_order_relaxed);
             converged_.store(canceller_.converged(), std::memory_order_relaxed);
+            weightNorm_.store(canceller_.weightNorm(), std::memory_order_relaxed);
 
             const float level = rms(mic, kBlockSamples);
             divergence_.update(level * level);
@@ -708,7 +714,7 @@ void NodeRuntime::telemetryLoop() {
             "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
             "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
-            "hum=%.1fdBFS",
+            "hum=%.1fdBFS wnorm=%.3f faults=%u",
             toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -724,7 +730,9 @@ void NodeRuntime::telemetryLoop() {
             static_cast<unsigned>(alignSamples_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignDrops_.load(std::memory_order_relaxed)),
             micDbfs_.load(std::memory_order_relaxed),
-            humDbfs_.load(std::memory_order_relaxed));
+            humDbfs_.load(std::memory_order_relaxed),
+            weightNorm_.load(std::memory_order_relaxed),
+            static_cast<unsigned>(faults_.load(std::memory_order_relaxed)));
         if (tick % kStackReportEvery == 0) {
             // In ESP-IDF the high-water mark is in bytes. 0 means the task
             // never started. nullptr asks about this task itself.
@@ -817,7 +825,8 @@ void NodeRuntime::start() {
                 // sound fades in. Calibration and RUN turn it back on.
                 processor_.store(&silence_, std::memory_order_release);
                 gainTarget_.store(0.0f, std::memory_order_relaxed);
-                ESP_LOGE(kTag, "fault -- output muted");
+                faults_.fetch_add(1, std::memory_order_relaxed);
+                ESP_LOGE(kTag, "fault (%s) -- output muted", faultCause_);
                 next = NodeState::SafeMute;
                 break;
 
