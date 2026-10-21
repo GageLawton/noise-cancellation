@@ -93,8 +93,7 @@ public:
     // per sample, after nextOutput(), with the mic sample that heard it.
     //
     // The sign is MINUS: the mic hears hum + speaker, so the weights must
-    // move to make the speaker oppose the hum. Design doc 6.1 writes "+"
-    // because it treats the output as already inverted.
+    // move to make the speaker oppose the hum (design doc 6.1).
     void update(float mic) {
         trackResidual(mic);
 
