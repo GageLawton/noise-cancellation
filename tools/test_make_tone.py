@@ -37,6 +37,21 @@ def test_noisy_tone_still_has_correct_frequency():
     assert dominant_peak(signal, RATE) == pytest.approx(FREQ, abs=0.5)
 
 
+def test_harmonics_add_peaks_at_multiples():
+    samples = make_tone(60.0, SECONDS, RATE, AMPLITUDE, harmonics=2)
+    spectrum = np.abs(np.fft.rfft(samples.astype(np.float64)))
+    freqs = np.fft.rfftfreq(samples.size, 1.0 / RATE)
+
+    def height(hz):
+        return spectrum[np.argmin(np.abs(freqs - hz))]
+
+    # The three strongest bins are the tone and its two harmonics.
+    top = sorted(freqs[np.argsort(spectrum)[-3:]])
+    assert top == pytest.approx([60.0, 120.0, 180.0], abs=0.5)
+    # Harmonic k has amplitude / k, so 120 Hz is half as tall as 60 Hz.
+    assert height(120.0) / height(60.0) == pytest.approx(0.5, abs=0.02)
+
+
 def strongest_hz(samples, rate):
     spectrum = np.abs(np.fft.rfft(samples.astype(np.float64)))
     return np.fft.rfftfreq(samples.size, 1.0 / rate)[np.argmax(spectrum)]

@@ -8,6 +8,7 @@ get one.
 Usage:
     ./make_tone.py tone.wav --freq 120
     ./make_tone.py tone_stereo.wav --freq 60 --stereo
+    ./make_tone.py hum.wav --freq 60 --harmonics 2
     ./make_tone.py sweep.wav --sweep 20 500 --seconds 10
 """
 
@@ -17,8 +18,12 @@ import wave
 import numpy as np
 
 
-def make_tone(freq_hz, seconds, rate, amplitude, stereo=False, noise=0.0):
+def make_tone(freq_hz, seconds, rate, amplitude, stereo=False, noise=0.0,
+              harmonics=0):
     """Sine wave as int16 samples, interleaved if stereo.
+
+    harmonics adds that many overtones, like real mains hum: harmonic k
+    (from 2 to harmonics + 1) sits at k * freq_hz with amplitude / k.
 
     A stereo file carries the tone on the left channel and silence on the
     right: that asymmetry makes it obvious when a reader mixes channels
@@ -26,9 +31,12 @@ def make_tone(freq_hz, seconds, rate, amplitude, stereo=False, noise=0.0):
     """
     t = np.arange(round(seconds * rate), dtype=np.float64) / rate
     tone = amplitude * np.sin(2.0 * np.pi * freq_hz * t)
+    for k in range(2, harmonics + 2):
+        tone = tone + (amplitude / k) * np.sin(2.0 * np.pi * k * freq_hz * t)
     if noise > 0.0:
         rng = np.random.default_rng(0)
         tone = tone + noise * rng.standard_normal(t.size)
+    if noise > 0.0 or harmonics > 0:
         tone = np.clip(tone, -1.0, 1.0)
     # 32767 rather than 32768: the positive peak of an int16 is one short
     # of the negative one, so scaling by 32768 can wrap a full-scale tone.
@@ -68,6 +76,9 @@ def main():
                    help="amplitude from 0 to 1 (default: 0.5)")
     p.add_argument("--noise", type=float, default=0.0,
                    help="white noise level, 0 to 1 (default: 0, none)")
+    p.add_argument("--harmonics", type=int, default=0, metavar="N",
+                   help="add N harmonics at 2x, 3x, ... --freq, harmonic k at "
+                        "amplitude / k (default: 0, a pure tone)")
     p.add_argument("--stereo", action="store_true",
                    help="write the tone on the left channel and silence on the right")
     p.add_argument("--sweep", type=float, nargs=2, metavar=("START", "END"),
@@ -85,14 +96,20 @@ def main():
         p.error("--amplitude must be greater than 0 and at most 1")
     if not 0.0 <= args.noise <= 1.0:
         p.error("--noise must be between 0 and 1")
+    if args.harmonics < 0:
+        p.error("--harmonics must be 0 or more")
     nyquist = args.rate / 2.0
     if args.sweep:
         if not all(0.0 < f < nyquist for f in args.sweep):
             p.error(f"--sweep frequencies must be above 0 and below {nyquist:.1f} Hz")
         if args.noise > 0.0:
             p.error("--noise is not supported with --sweep")
+        if args.harmonics > 0:
+            p.error("--harmonics is not supported with --sweep")
     elif args.freq >= nyquist:
         p.error(f"--freq must be below the Nyquist limit ({nyquist:.1f} Hz)")
+    elif (args.harmonics + 1) * args.freq >= nyquist:
+        p.error(f"the top harmonic must be below the Nyquist limit ({nyquist:.1f} Hz)")
 
     channels = 2 if args.stereo else 1
     if args.sweep:
@@ -104,7 +121,8 @@ def main():
             samples = interleaved
     else:
         samples = make_tone(args.freq, args.seconds, args.rate, args.amplitude,
-                            stereo=args.stereo, noise=args.noise)
+                            stereo=args.stereo, noise=args.noise,
+                            harmonics=args.harmonics)
 
     with wave.open(args.output, "wb") as w:
         w.setnchannels(channels)
