@@ -93,6 +93,53 @@ sync tick loopback with a jumper wire.
 |---|---|---|---|---|---|
 | | | | | | |
 
+## Speaker low tones (#316)
+
+Bench check [#316](https://github.com/GageLawton/noise-cancellation/issues/316):
+which low tones the speaker can actually play, from a 40 to 400 Hz sweep
+recorded about 30 cm away.
+
+| Date | Commit | Playback (passthrough or laptop) | 60 Hz below 200 Hz (dB) | Lowest Hz clearly above room noise | Notes |
+|---|---|---|---|---|---|
+| | | | | | |
+
+## Config after a power cut (#317)
+
+Bench check [#317](https://github.com/GageLawton/noise-cancellation/issues/317):
+does the config survive a power cut right after `save`? One row per cut.
+
+| Date | Commit | Cut (1 to 5) | Booted (yes/no) | `output.ceiling` after boot | Boot log warnings | Notes |
+|---|---|---|---|---|---|---|
+| | | | | | | |
+
+## Calibration and mic distance (#318)
+
+Bench check [#318](https://github.com/GageLawton/noise-cancellation/issues/318):
+how calibration changes with the mic 10, 30 and 100 cm from the speaker.
+One row per distance.
+
+| Date | Commit | Mic distance (cm) | Peak index | Peak value | Delay (ms) | Calibration warnings | Notes |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
+## Sync tick in the full firmware (#360)
+
+Bench check [#360](https://github.com/GageLawton/noise-cancellation/issues/360):
+the sync tick in the full firmware, with GPIO15 jumpered to GPIO16.
+
+| Date | Commit | Heard equals sent (yes/no) | `syncrx` growth per minute | `missed=0 bad=0` (yes/no) | Ticks lost with jumper out | Kept pace after (yes/no) | Notes |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
+## Overnight run (#361)
+
+Bench check [#361](https://github.com/GageLawton/noise-cancellation/issues/361):
+leave the node running for 8 hours or more.
+
+| Date | Commit | Run length (h) | Recalibrations | `FAULT` lines | Reboots | Last `stack free:` | Notes |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
 ## Hardware
 
 The setup these results were measured on. The parts and wiring are in
