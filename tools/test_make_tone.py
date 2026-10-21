@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from analyze import dominant_peak
-from make_tone import make_tone
+from make_tone import make_sweep, make_tone
 
 RATE = 8000
 FREQ = 120.0
@@ -35,3 +35,19 @@ def test_noisy_tone_still_has_correct_frequency():
     signal = samples.astype(np.float64) / 32768.0
 
     assert dominant_peak(signal, RATE) == pytest.approx(FREQ, abs=0.5)
+
+
+def strongest_hz(samples, rate):
+    spectrum = np.abs(np.fft.rfft(samples.astype(np.float64)))
+    return np.fft.rfftfreq(samples.size, 1.0 / rate)[np.argmax(spectrum)]
+
+
+def test_sweep_glides_from_start_to_end():
+    samples = make_sweep(100.0, 200.0, 1.0, RATE, AMPLITUDE)
+    tenth = RATE // 10
+
+    assert samples.size == RATE
+    assert samples.dtype == np.int16
+    # Over the first and last 0.1 s the frequency averages 105 Hz and 195 Hz.
+    assert strongest_hz(samples[:tenth], RATE) == pytest.approx(105.0, abs=10.0)
+    assert strongest_hz(samples[-tenth:], RATE) == pytest.approx(195.0, abs=10.0)
