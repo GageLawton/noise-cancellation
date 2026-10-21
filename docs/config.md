@@ -29,7 +29,7 @@ each setting; those operations are not all implemented in the current firmware.
 
 | Key | Default | Allowed values | What it does |
 |---|---|---|---|
-| `probe_duration_ms` | `300` | Whole number from 50 through 5000 ms, inclusive. | Duration of the known test sound used to estimate the speaker-to-microphone model. |
+| `probe_duration_ms` | `300` | Whole number from 50 through 5000 ms, inclusive. | Duration of the known test sound used to estimate the speaker-to-microphone model. Values above 512 ms are accepted but capped at 512 ms (4096 samples at 8 kHz), the size of the calibration recorder ([`probe_processor.hpp`](../components/calibration/include/anc/probe_processor.hpp)). |
 | `probe_amplitude` | `0.1` | Greater than 0 and at most 0.5. | Level of the white-noise probe played during calibration, as a fraction of full scale. Above 0.5 it is unpleasantly loud and risks clipping. |
 | `correlation_threshold` | `0.3` | Greater than 0 and less than 1; also greater than `tracking.watch_correlation_threshold`. | Threshold intended to request recalibration when the model appears to have drifted. |
 | `correlation_window_ms` | `1000` | Whole number from 100 through 10000 ms, inclusive. | Time window used to measure the correlation signal. |
