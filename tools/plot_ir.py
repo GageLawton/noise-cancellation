@@ -17,6 +17,7 @@ Usage:
     python tools/plot_ir.py ir.csv --out ir.png
     python tools/plot_ir.py ir.csv --rate 16000   # if the mic ran at 16 kHz
     python tools/plot_ir.py old.csv --compare new.csv --out moved.png
+    python tools/plot_ir.py ir.csv --max-ms 4   # zoom in on the first 4 ms
 """
 
 import argparse
@@ -44,6 +45,12 @@ def load_ir_csv(path):
 def delays_ms(pairs, rate):
     """Return each tap's delay in milliseconds at rate samples per second."""
     return [1000.0 * index / rate for index, _ in pairs]
+
+
+def taps_within(pairs, rate, max_ms):
+    """Return only the (index, value) pairs whose delay is at most max_ms."""
+    delays = delays_ms(pairs, rate)
+    return [pair for pair, delay in zip(pairs, delays) if delay <= max_ms]
 
 
 def peak_pair(pairs):
@@ -77,9 +84,17 @@ def main():
         metavar="OTHER.csv",
         help="a second impulse response CSV to draw on the same axes",
     )
+    parser.add_argument(
+        "--max-ms",
+        type=float,
+        metavar="MS",
+        help="only draw taps up to this delay in ms (default: draw everything)",
+    )
     args = parser.parse_args()
     if args.rate <= 0:
         sys.exit("--rate must be a positive number of samples per second")
+    if args.max_ms is not None and args.max_ms <= 0:
+        sys.exit("--max-ms must be greater than 0")
 
     try:
         import matplotlib
@@ -102,15 +117,21 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 4))
     for path, pairs in zip(paths, responses):
+        shown = pairs
+        if args.max_ms is not None:
+            shown = taps_within(pairs, args.rate, args.max_ms)
         line = ax.plot(
-            delays_ms(pairs, args.rate),
-            [value for _, value in pairs],
+            delays_ms(shown, args.rate),
+            [value for _, value in shown],
             marker=".",
             label=os.path.basename(path),
         )[0]
         # One response keeps the gray peak line; two use each line's colour.
+        # A peak past --max-ms is left off so it doesn't stretch the axis.
         color = line.get_color() if args.compare else "gray"
-        ax.axvline(1000.0 * peak_pair(pairs)[0] / args.rate, linestyle="--", color=color)
+        peak_ms = 1000.0 * peak_pair(pairs)[0] / args.rate
+        if args.max_ms is None or peak_ms <= args.max_ms:
+            ax.axvline(peak_ms, linestyle="--", color=color)
     if args.compare:
         ax.legend()
     ax.set_title(title_for(responses[0], responses[1] if args.compare else None, args.rate))
