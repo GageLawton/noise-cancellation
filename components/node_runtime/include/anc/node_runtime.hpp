@@ -115,6 +115,10 @@ private:
     ConfigStore store_;
     NodeConfig config_{};
     NodeState state_ = NodeState::Boot;
+    // Why the node last entered FAULT, set just before each
+    // "return NodeState::Fault". Main task only.
+    const char* faultCause_ = "none";
+    std::atomic<uint32_t> faults_{0};  // times the node entered FAULT
     NodeStatusStore status_;
     uint64_t nodeId_ = 0;
 
