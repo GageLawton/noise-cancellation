@@ -38,7 +38,7 @@ Two more states show up only when something needs attention:
   `rechecking the speaker-to-mic path:` followed by the reason: `requested`
   (you typed `recal`), `the model no longer matches`, or
   `backstop interval reached` (every 10 minutes by default).
-- `FAULT` mutes the output at once (`fault -- output muted`) and then waits
+- `FAULT` mutes the output at once (`fault (<cause>) -- output muted`, where the cause names what failed) and then waits
   in `SAFE_MUTE` before trying again. The line just before it says why, for
   example `divergence detected` or `I2S init failed, check the mic and amp
   wiring`.
