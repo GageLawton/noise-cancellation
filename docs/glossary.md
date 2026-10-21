@@ -14,9 +14,17 @@ ANC reduces an unwanted sound by generating a controlled speaker signal that mak
 
 Clipping happens when a signal asks for a level beyond what the output can produce, so the tops of the wave are cut flat. It sounds harsh and can stress the speaker, so the project caps every output sample at a set ceiling and counts each time that happens; see [`output_limiter.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/output_limiter.hpp).
 
+## Coordinator
+
+The coordinator is the role that collects the status of every node, so one place knows how the whole system is doing. Node 1 plays it for now, alongside its own node runtime, and the role does not move when more nodes arrive; see the [system architecture](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#2-system-architecture) and [`coordinator.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/coordinator/include/anc/coordinator.hpp).
+
 ## Correlation (normalized)
 
 Normalized correlation measures how alike two signals are on a scale from -1 to +1: near 0 means unrelated, near +1 means the same shape, and near -1 means the same shape flipped. The project uses it to spot a copy of its own speaker output left in the estimated noise, which means the speaker-to-mic model is stale; see [`rolling_correlation.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/alignment/include/anc/rolling_correlation.hpp).
+
+## Crest factor
+
+The crest factor is the peak level divided by the RMS level, usually given in dB. A sine is about 3 dB and a square wave is 0 dB; a high value means short spikes that come close to clipping even when the average level is modest; see [`peak.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/peak.hpp).
 
 ## dBFS
 
@@ -41,6 +49,10 @@ Direct memory access lets a peripheral move data to or from memory without the C
 ## FxLMS
 
 Filtered-x Least Mean Squares is the adaptive algorithm used to tune the cancellation signal. It filters the reference through an estimate of the speaker-to-microphone path before updating the weights, which accounts for the physical path between the filter output and the measured error; see [§6.1](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#61-fxlms-filtered-x-least-mean-squares).
+
+## Goertzel algorithm
+
+The Goertzel algorithm measures the level of one frequency in a block of samples without computing a full FFT. It is cheap when only a few frequencies matter, such as checking how loud a 60 Hz hum is; see [`goertzel.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/goertzel.hpp).
 
 ## I2S
 
@@ -77,6 +89,14 @@ The sample rate is the number of audio samples captured or produced per second, 
 ## Secondary path
 
 The secondary path is the transfer function from the speaker, through the amplifier and acoustic environment, to the microphone. FxLMS estimates this path as `S(z)` so its updates account for how the generated signal actually returns to the error microphone; see the [signal notation](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#60-notation).
+
+## Sync tick
+
+A sync tick is a pulse on the wired sync line between nodes that keeps them in step, so every board agrees on when a block starts. It is phase 1 of the timing plan; later phases may send it over radio instead. See [timing synchronization](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#4-timing-synchronization) and [`sync_tick.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/transport/include/anc/sync_tick.hpp).
+
+## Telemetry
+
+Telemetry is the one-line status the firmware prints over the serial port every second, such as the state, residual level and clip count. It lets you watch a node from a laptop without a debugger, and [`telemetry_to_csv.py`](https://github.com/GageLawton/noise-cancellation/blob/main/tools/telemetry_to_csv.py) turns a saved log into a table; see [telemetry and logging](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#58-telemetry--logging).
 
 ## Tonal noise
 

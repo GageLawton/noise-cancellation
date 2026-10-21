@@ -10,6 +10,7 @@
 #include "anc/block_processor.hpp"
 #include "anc/calibration_scheduler.hpp"
 #include "anc/config_store.hpp"
+#include "anc/coordinator.hpp"
 #include "anc/divergence_detector.hpp"
 #include "anc/fxlms_canceller.hpp"
 #include "anc/fxlms_processor.hpp"
@@ -114,6 +115,10 @@ private:
     ConfigStore store_;
     NodeConfig config_{};
     NodeState state_ = NodeState::Boot;
+    // Why the node last entered FAULT, set just before each
+    // "return NodeState::Fault". Main task only.
+    const char* faultCause_ = "none";
+    std::atomic<uint32_t> faults_{0};  // times the node entered FAULT
     NodeStatusStore status_;
     uint64_t nodeId_ = 0;
 
@@ -162,6 +167,7 @@ private:
     FxlmsProcessor fxlms_{canceller_};
     std::atomic<float> residualDbfs_{-120.0f};  // what's left of the hum
     std::atomic<bool> converged_{false};
+    std::atomic<float> weightNorm_{0.0f};  // canceller_.weightNorm()
 
     // Safety net for the live canceller (design doc 5.9). FilterTask feeds
     // it each mic block's power while the canceller runs and raises
@@ -186,6 +192,17 @@ private:
     std::atomic<float> alignCorrelation_{0.0f};
     std::atomic<bool> alignLowConfidence_{false};
     std::atomic<bool> alignNeedsCalibration_{false};
+    // Level of just the hum at the tracked frequency, for telemetry. The
+    // buffer collects 100 ms of mic samples; only AlignmentTask touches it.
+    static constexpr std::size_t kHumSamples = 800;  // 100 ms at 8 kHz
+    float humBuf_[kHumSamples]{};
+    std::size_t humCount_ = 0;
+    std::atomic<float> humDbfs_{-120.0f};
+
+    // M7 skeleton: node 1 plays both roles, reporting to its own
+    // coordinator. LocalCoordinator isn't thread-safe; only TelemetryTask
+    // touches it.
+    LocalCoordinator coordinator_;
 
     // Where each tone starts after a calibration: the last locked
     // frequency if there is one, else the config's hint. Set at the start
@@ -227,6 +244,11 @@ private:
     // AudioIOTask wakes FilterTask with a task notification after each mic
     // block, so FilterTask starts at once instead of polling.
     TaskHandle_t filterTask_ = nullptr;
+    // For the stack report in telemetryLoop(). Set once in spawnTasks(),
+    // well before telemetry's first report 10 s later.
+    TaskHandle_t audioIoTask_   = nullptr;
+    TaskHandle_t alignmentTask_ = nullptr;
+    TaskHandle_t configTask_    = nullptr;
 };
 
 }  // namespace anc

@@ -14,23 +14,23 @@ Measurements from the bench: [`docs/bench-results.md`](docs/bench-results.md).
 
 ## Status
 
-The device boots, loads its JSON config from flash, runs the state machine
-and reports status at 1 Hz. The building blocks for M2 to M6 (I2S driver,
-test tone, calibration, FxLMS canceller and frequency alignment) exist and
-are tested on a laptop; wiring them into the running firmware is in
-progress. The [roadmap (#138)](https://github.com/GageLawton/noise-cancellation/issues/138)
-lists what's left, issue by issue.
+M2 to M6 are implemented in the firmware and tested on a laptop: the device
+boots, loads its JSON config, calibrates the speaker-to-mic path, cancels the
+hum with FxLMS, tracks the hum's frequency, takes serial commands and reports
+status at 1 Hz. The next step is checking each milestone on the bench. The
+[roadmap (#138)](https://github.com/GageLawton/noise-cancellation/issues/138)
+lists the bench checks and what's left, issue by issue.
 
 | M | Goal | Status |
 |---|---|---|
 | M0 | Both build targets compile | done |
 | M1 | Boot path, config, tasks, telemetry | done |
-| M2 | Audio plumbing end-to-end | in progress |
-| M3 | Output path proven (fixed sine) | building blocks done |
-| M4 | Calibration (probe → SecondaryPath) | building blocks done |
-| M5 | Cancellation (FxLMS) | building blocks done |
-| M6 | Alignment (reconstruct, PLL, drift) | building blocks done |
-| M7 | Multi-node prep (sync line) | |
+| M2 | Audio plumbing end-to-end | implemented, bench check pending |
+| M3 | Output path proven (fixed sine) | implemented, bench check pending |
+| M4 | Calibration (probe → SecondaryPath) | implemented, bench check pending |
+| M5 | Cancellation (FxLMS) | implemented, bench check pending |
+| M6 | Alignment (reconstruct, PLL, drift) | implemented, bench check pending |
+| M7 | Multi-node prep (sync line) | in progress |
 
 ## Get involved
 

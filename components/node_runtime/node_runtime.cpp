@@ -8,10 +8,12 @@
 #include "anc/command_parser.hpp"
 #include "anc/config_keys.hpp"
 #include "anc/decibels.hpp"
+#include "anc/goertzel.hpp"
 #include "anc/ir_analysis.hpp"
 #include "anc/ir_estimator.hpp"
 #include "anc/output_limiter.hpp"
 #include "anc/rms.hpp"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_timer.h"
@@ -29,6 +31,15 @@ constexpr BaseType_t kRealtimeCore    = 0;
 constexpr BaseType_t kNonRealtimeCore = 1;
 
 constexpr uint32_t kTelemetryPeriodMs = 1000;
+// Telemetry lines between stack reports (10 s).
+constexpr uint32_t kStackReportEvery = 10;
+
+// Smallest free stack the task has ever had, in bytes, or 0 if it never
+// started. nullptr is not allowed here: FreeRTOS reads that as "this task".
+unsigned stackFree(TaskHandle_t task) {
+    return task == nullptr ? 0u
+                           : static_cast<unsigned>(uxTaskGetStackHighWaterMark(task));
+}
 
 // How long the main task waits for FilterTask to act on a request. A
 // block is 4 ms, so these only run out if FilterTask has stopped.
@@ -80,6 +91,11 @@ void NodeRuntime::transitionTo(NodeState next) {
 }
 
 NodeState NodeRuntime::doBoot() {
+    // The version comes from `git describe`, so a pasted log says which
+    // code it came from.
+    const esp_app_desc_t* app = esp_app_get_description();
+    ESP_LOGI(kTag, "firmware %s, built %s %s", app->version, app->date, app->time);
+
     nodeId_ = deriveNodeId();
     ESP_LOGI(kTag, "node id %012llx", static_cast<unsigned long long>(nodeId_));
 
@@ -121,6 +137,7 @@ NodeState NodeRuntime::doBoot() {
 NodeState NodeRuntime::doInitHal() {
     if (!audio_.init(defaultI2sSettings())) {
         ESP_LOGE(kTag, "I2S init failed, check the mic and amp wiring");
+        faultCause_ = "i2s init";
         return NodeState::Fault;
     }
     tone_.emplace(kSampleRateHz, config_.testToneHz, config_.testToneAmplitude);
@@ -210,6 +227,7 @@ NodeState NodeRuntime::doCalibrate() {
     //    fade-in on the probe itself would skew the estimate.
     if (!fadeTo(0.0f) || !useProcessor(&silence_) || !fadeTo(1.0f)) {
         ESP_LOGE(kTag, "calibration: FilterTask not responding");
+        faultCause_ = "filter task";
         return NodeState::Fault;
     }
 
@@ -250,6 +268,7 @@ NodeState NodeRuntime::doCalibrate() {
     if (!finished) {
         ESP_LOGE(kTag, "calibration: probe didn't finish in %u ms",
                  static_cast<unsigned>(giveUp));
+        faultCause_ = "probe timeout";
         return NodeState::Fault;
     }
 
@@ -258,6 +277,7 @@ NodeState NodeRuntime::doCalibrate() {
     //    reads secondaryPath_ while it configures, so let it finish first.
     if (!waitForAlignmentIdle()) {
         ESP_LOGE(kTag, "calibration: AlignmentTask not responding");
+        faultCause_ = "alignment task";
         return NodeState::Fault;
     }
     const auto& rec = probe_.recording();
@@ -329,6 +349,7 @@ NodeState NodeRuntime::doRun() {
     for (;;) {
         if (diverged_.exchange(false, std::memory_order_relaxed)) {
             ESP_LOGE(kTag, "divergence detected");
+            faultCause_ = "divergence";
             return NodeState::Fault;
         }
         // Asked for at the console: skips the cooldown, since a person
@@ -475,6 +496,7 @@ void NodeRuntime::filterLoop() {
             residualDbfs_.store(amplitudeToDb(std::sqrt(canceller_.residualPower())),
                                 std::memory_order_relaxed);
             converged_.store(canceller_.converged(), std::memory_order_relaxed);
+            weightNorm_.store(canceller_.weightNorm(), std::memory_order_relaxed);
 
             const float level = rms(mic, kBlockSamples);
             divergence_.update(level * level);
@@ -515,6 +537,16 @@ void NodeRuntime::alignmentLoop() {
         while (alignRing_.pop(pair)) {
             if (configured) {
                 align_.update(pair.mic, pair.synth);
+            }
+            humBuf_[humCount_++] = pair.mic;
+            if (humCount_ == kHumSamples) {
+                // 100 ms holds a whole number of cycles of 60 Hz (and 50 Hz),
+                // so the measurement leaks little from nearby frequencies.
+                const float amplitude = toneAmplitude(
+                    humBuf_, kHumSamples,
+                    trackedFreqHz_[0].load(std::memory_order_relaxed), kSampleRateHz);
+                humDbfs_.store(amplitudeToDb(amplitude), std::memory_order_relaxed);
+                humCount_ = 0;
             }
             ++received;
         }
@@ -604,6 +636,18 @@ void NodeRuntime::handleCommand(const char* line) {
             std::printf("recalibrating\n");
             break;
 
+        case Verb::Status: {
+            // The same atomics telemetryLoop() prints, on demand.
+            const NodeStatus st = status_.read();
+            std::printf(
+                "state=%s freq=%.2f lock=%d resid=%.1fdBFS mic=%.1fdBFS\n",
+                toString(st.state), trackedFreqHz_[0].load(std::memory_order_relaxed),
+                static_cast<int>(trackedLocked_[0].load(std::memory_order_relaxed)),
+                residualDbfs_.load(std::memory_order_relaxed),
+                micDbfs_.load(std::memory_order_relaxed));
+            break;
+        }
+
         case Verb::Help:
             std::printf(
                 "commands:\n"
@@ -613,6 +657,7 @@ void NodeRuntime::handleCommand(const char* line) {
                 "calibration)\n"
                 "  save               write the settings to flash\n"
                 "  recal              calibrate again now\n"
+                "  status             show the state, hum and levels now\n"
                 "  help               this list\n"
                 "keys are the node.json names, e.g. "
                 "calibration.probe_duration_ms (see docs/config.md)\n");
@@ -661,13 +706,15 @@ void NodeRuntime::configLoop() {
 }
 
 void NodeRuntime::telemetryLoop() {
-    for (;;) {
+    for (uint32_t tick = 1;; ++tick) {
         NodeStatus s = status_.read();
+        coordinator_.report(s);
         ESP_LOGI(
             "telemetry",
             "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
-            "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS",
+            "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
+            "hum=%.1fdBFS wnorm=%.3f faults=%u",
             toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -682,7 +729,23 @@ void NodeRuntime::telemetryLoop() {
             static_cast<unsigned>(underruns_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignSamples_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignDrops_.load(std::memory_order_relaxed)),
-            micDbfs_.load(std::memory_order_relaxed));
+            micDbfs_.load(std::memory_order_relaxed),
+            humDbfs_.load(std::memory_order_relaxed),
+            weightNorm_.load(std::memory_order_relaxed),
+            static_cast<unsigned>(faults_.load(std::memory_order_relaxed)));
+        if (tick % kStackReportEvery == 0) {
+            // In ESP-IDF the high-water mark is in bytes. 0 means the task
+            // never started. nullptr asks about this task itself.
+            ESP_LOGI("telemetry",
+                     "stack free: audio_io=%u filter=%u alignment=%u config=%u "
+                     "telemetry=%u",
+                     stackFree(audioIoTask_), stackFree(filterTask_),
+                     stackFree(alignmentTask_), stackFree(configTask_),
+                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+            // On one board this should always say 1.
+            ESP_LOGI("telemetry", "coordinator: %u node(s)",
+                     static_cast<unsigned>(coordinator_.nodeCount()));
+        }
         vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
     }
 }
@@ -710,19 +773,19 @@ void NodeRuntime::spawnTasks() {
     // below the top priority (ESP-IDF's IPC tasks keep the very top).
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->audioIoLoop(); }, "audio_io",
-        4096, this, configMAX_PRIORITIES - 2, nullptr, kRealtimeCore);
+        4096, this, configMAX_PRIORITIES - 2, &audioIoTask_, kRealtimeCore);
 
     // AlignmentTask: frequency tracking and drift checks (M6). Core 1, so
     // it can fall behind without touching the audio path.
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->alignmentLoop(); }, "alignment",
-        4096, this, 3, nullptr, kNonRealtimeCore);
+        4096, this, 3, &alignmentTask_, kNonRealtimeCore);
 
     // ConfigTask: serial commands. Lowest priority on core 1. A bigger
     // stack than the others, because `save` runs cJSON and LittleFS.
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->configLoop(); }, "config", 6144,
-        this, 1, nullptr, kNonRealtimeCore);
+        this, 1, &configTask_, kNonRealtimeCore);
 
     ESP_LOGI(kTag, "tasks spawned; type help for serial commands");
 }
@@ -762,7 +825,8 @@ void NodeRuntime::start() {
                 // sound fades in. Calibration and RUN turn it back on.
                 processor_.store(&silence_, std::memory_order_release);
                 gainTarget_.store(0.0f, std::memory_order_relaxed);
-                ESP_LOGE(kTag, "fault -- output muted");
+                faults_.fetch_add(1, std::memory_order_relaxed);
+                ESP_LOGE(kTag, "fault (%s) -- output muted", faultCause_);
                 next = NodeState::SafeMute;
                 break;
 

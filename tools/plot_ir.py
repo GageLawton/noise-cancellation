@@ -4,7 +4,9 @@
 Reads the ``index,value`` CSV that ``ir_from_log.py --csv`` writes and plots
 each tap against its delay in milliseconds, with a dashed line at the peak.
 The picture makes the speaker-to-mic delay, and how quickly the response
-dies away, easy to see (bench check #110).
+dies away, easy to see (bench check #110). With ``--compare`` a second
+response is drawn on the same axes, to see what moved when the speaker-to-mic
+path changed.
 
 Needs matplotlib, which only bench users need, so it isn't in
 requirements.txt:
@@ -14,10 +16,12 @@ Usage:
     python tools/ir_from_log.py monitor.log --csv ir.csv
     python tools/plot_ir.py ir.csv --out ir.png
     python tools/plot_ir.py ir.csv --rate 16000   # if the mic ran at 16 kHz
+    python tools/plot_ir.py old.csv --compare new.csv --out moved.png
 """
 
 import argparse
 import csv
+import os
 import sys
 
 SAMPLE_RATE_HZ = 8000
@@ -42,6 +46,21 @@ def delays_ms(pairs, rate):
     return [1000.0 * index / rate for index, _ in pairs]
 
 
+def peak_pair(pairs):
+    """Return the (index, value) pair with the largest absolute value."""
+    return max(pairs, key=lambda pair: abs(pair[1]))
+
+
+def title_for(pairs_a, pairs_b, rate):
+    """Return the plot title for one response, or for two when pairs_b is set."""
+    index_a, value_a = peak_pair(pairs_a)
+    delay_a = 1000.0 * index_a / rate
+    if pairs_b is None:
+        return f"Impulse response: peak {value_a:.3f} at {delay_a:.3f} ms"
+    delay_b = 1000.0 * peak_pair(pairs_b)[0] / rate
+    return f"Impulse responses: peak moved by {delay_b - delay_a:.3f} ms"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", help="CSV of index,value rows from ir_from_log.py")
@@ -52,6 +71,11 @@ def main():
         default=SAMPLE_RATE_HZ,
         help=f"sample rate in Hz the impulse response was measured at "
         f"(default {SAMPLE_RATE_HZ})",
+    )
+    parser.add_argument(
+        "--compare",
+        metavar="OTHER.csv",
+        help="a second impulse response CSV to draw on the same axes",
     )
     args = parser.parse_args()
     if args.rate <= 0:
@@ -65,21 +89,31 @@ def main():
     except ImportError:
         sys.exit("plot_ir.py needs matplotlib: pip install matplotlib")
 
-    try:
-        pairs = load_ir_csv(args.path)
-    except (OSError, ValueError, IndexError) as error:
-        sys.exit(f"Cannot read impulse response CSV: {error}")
-    if not pairs:
-        sys.exit("No taps found in the CSV")
-
-    delays = delays_ms(pairs, args.rate)
-    values = [value for _, value in pairs]
-    peak = max(range(len(values)), key=lambda i: abs(values[i]))
+    paths = [args.path] + ([args.compare] if args.compare else [])
+    responses = []
+    for path in paths:
+        try:
+            pairs = load_ir_csv(path)
+        except (OSError, ValueError, IndexError) as error:
+            sys.exit(f"Cannot read impulse response CSV: {error}")
+        if not pairs:
+            sys.exit(f"No taps found in {path}")
+        responses.append(pairs)
 
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(delays, values, marker=".")
-    ax.axvline(delays[peak], linestyle="--", color="gray")
-    ax.set_title(f"Impulse response: peak {values[peak]:.3f} at {delays[peak]:.3f} ms")
+    for path, pairs in zip(paths, responses):
+        line = ax.plot(
+            delays_ms(pairs, args.rate),
+            [value for _, value in pairs],
+            marker=".",
+            label=os.path.basename(path),
+        )[0]
+        # One response keeps the gray peak line; two use each line's colour.
+        color = line.get_color() if args.compare else "gray"
+        ax.axvline(1000.0 * peak_pair(pairs)[0] / args.rate, linestyle="--", color=color)
+    if args.compare:
+        ax.legend()
+    ax.set_title(title_for(responses[0], responses[1] if args.compare else None, args.rate))
     ax.set_xlabel(f"Delay (ms at {args.rate} Hz)")
     ax.set_ylabel("Tap value")
     ax.grid(True, alpha=0.3)

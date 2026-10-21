@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 
 #include "anc/fir_filter.hpp"
@@ -93,8 +94,7 @@ public:
     // per sample, after nextOutput(), with the mic sample that heard it.
     //
     // The sign is MINUS: the mic hears hum + speaker, so the weights must
-    // move to make the speaker oppose the hum. Design doc 6.1 writes "+"
-    // because it treats the output as already inverted.
+    // move to make the speaker oppose the hum (design doc 6.1).
     void update(float mic) {
         trackResidual(mic);
 
@@ -131,6 +131,15 @@ public:
 
     // Weight i of 2 * kMaxTones: tone i / 2, sine if i is even, cosine if odd.
     float weight(std::size_t i) const { return w_[i]; }
+
+    // Square root of the sum of squares of the active tones' weights.
+    float weightNorm() const {
+        float squares = 0.0f;
+        for (std::size_t i = 0; i < 2 * numTones_; ++i) {
+            squares += w_[i] * w_[i];
+        }
+        return std::sqrt(squares);
+    }
 
     static constexpr std::size_t kConvergedSamples = 4000;  // 0.5 s at 8 kHz
 

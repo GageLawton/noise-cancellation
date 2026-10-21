@@ -1,13 +1,13 @@
 # Code map
 
-What each header does and how audio will flow between them. For the reasons
+What each header does and how audio flows between them. For the reasons
 behind the design, read the [design doc](design.md); for what's left to
 build, see the [roadmap (#138)](https://github.com/GageLawton/noise-cancellation/issues/138).
 
-Most of the pieces below are built and tested on a laptop but not yet wired
-into the running firmware. Those parts are marked **(planned)**. Today the
-firmware boots, loads its config, runs the state machine and prints
-telemetry once a second.
+The firmware runs every task below: it calibrates the speaker-to-mic path,
+cancels the hum, tracks its frequency, answers serial commands and prints
+telemetry once a second. What's left is checking it on the bench, and the
+multi-node pieces (M7), which are still marked **(planned)**.
 
 ## How audio flows
 
@@ -19,15 +19,15 @@ Every arrow between tasks is a lock-free ring buffer
 
 ```mermaid
 flowchart LR
-    mic([I2S mic]) --> audioIn["AudioIOTask (planned)"]
+    mic([I2S mic]) --> audioIn["AudioIOTask"]
     audioIn --> micRing[[mic ring]]
-    micRing --> filter["FilterTask (planned)<br/>runs the active IBlockProcessor"]
+    micRing --> filter["FilterTask<br/>runs the active IBlockProcessor"]
     filter --> outRing[[output ring]]
-    outRing --> audioOut["AudioIOTask (planned)"]
+    outRing --> audioOut["AudioIOTask"]
     audioOut --> amp([I2S amp])
 
     filter --> pairRing[["{mic, synth} ring"]]
-    pairRing --> align["AlignmentTask (planned)<br/>AlignmentEngine"]
+    pairRing --> align["AlignmentTask<br/>AlignmentEngine"]
 
     subgraph core0 [Core 0: real time]
         audioIn
@@ -44,7 +44,7 @@ flowchart LR
 `AlignmentTask` takes each pair of {what the mic heard, what we played}, removes
 our own speaker from the mic signal, tracks where each hum has drifted to, and
 decides when the speaker-to-mic model is stale and needs recalibrating.
-`TelemetryTask` (running today) prints the node's status once a second.
+`TelemetryTask` prints the node's status once a second.
 
 ## Block processors
 
@@ -91,8 +91,10 @@ tested on a laptop.
 | [`fxlms_canceller.hpp`](../components/dsp_core/include/anc/fxlms_canceller.hpp) | Cancels one hum tone with FxLMS, using a sine and a cosine weight. |
 | [`fxlms_processor.hpp`](../components/dsp_core/include/anc/fxlms_processor.hpp) | Runs an `FxlmsCanceller` as a block processor (M5). |
 | [`gain_ramp.hpp`](../components/dsp_core/include/anc/gain_ramp.hpp) | Fades the output gain in or out so switching doesn't click. |
+| [`goertzel.hpp`](../components/dsp_core/include/anc/goertzel.hpp) | Measures the amplitude of one frequency in a block of samples, such as the hum the tracker follows. |
 | [`output_limiter.hpp`](../components/dsp_core/include/anc/output_limiter.hpp) | Clamps every speaker sample to the configured ceiling and reports clipping. |
 | [`passthrough_processor.hpp`](../components/dsp_core/include/anc/passthrough_processor.hpp) | Copies the mic to the speaker at a fixed gain, as a quick bench check. |
+| [`peak.hpp`](../components/dsp_core/include/anc/peak.hpp) | Largest absolute sample in a block, for spotting clipping or a too-loud signal. |
 | [`ref_generator.hpp`](../components/dsp_core/include/anc/ref_generator.hpp) | Generates the sine and cosine reference at a given frequency. |
 | [`rms.hpp`](../components/dsp_core/include/anc/rms.hpp) | Root mean square level of a block of samples. |
 | [`running_power.hpp`](../components/dsp_core/include/anc/running_power.hpp) | Exponential running average of signal power. |
@@ -131,7 +133,7 @@ Settings stored in `/cfg/node.json`; see [config.md](config.md).
 
 | Header | What it does |
 |---|---|
-| [`command_parser.hpp`](../components/config/include/anc/command_parser.hpp) | Parses serial commands like `get`, `set`, `save` and `recal` (planned in the firmware). |
+| [`command_parser.hpp`](../components/config/include/anc/command_parser.hpp) | Parses serial commands like `get`, `set`, `save` and `recal`. |
 | [`config_keys.hpp`](../components/config/include/anc/config_keys.hpp) | Maps `section.key` names to `NodeConfig` fields for the serial commands. |
 | [`config_store.hpp`](../components/config/include/anc/config_store.hpp) | Loads and saves `NodeConfig` as JSON on the flash filesystem (device only). |
 | [`node_config.hpp`](../components/config/include/anc/node_config.hpp) | Every runtime setting, its defaults and its validation. |
@@ -153,6 +155,7 @@ Talking between nodes (M7, planned).
 | Header | What it does |
 |---|---|
 | [`crc8.hpp`](../components/transport/include/anc/crc8.hpp) | One-byte CRC-8 checksum, so a node can throw away a corrupted message. |
+| [`sync_frame.hpp`](../components/transport/include/anc/sync_frame.hpp) | A `SyncMessage` on the wire: its 20 bytes plus a CRC-8, so a corrupted frame is thrown away. |
 | [`sync_message.hpp`](../components/transport/include/anc/sync_message.hpp) | The timing message nodes exchange, and its 20-byte wire format. |
 | [`sync_tick.hpp`](../components/transport/include/anc/sync_tick.hpp) | `ISyncTick`: a shared tick that keeps boards in step. A fake ([`fake_sync_tick.hpp`](../test/fakes/fake_sync_tick.hpp)) stands in for host tests. |
 

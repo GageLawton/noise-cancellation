@@ -3,11 +3,12 @@
 
 Calibration prints each tap as a line like ``ir,12,0.0431``, mixed in with
 other log output. This tool collects those taps in index order and reports
-the biggest one (the acoustic delay).
+the biggest one (the acoustic delay) and how many taps follow it.
 
 Usage:
     python tools/ir_from_log.py monitor.log
     python tools/ir_from_log.py monitor.log --csv ir.csv
+    python tools/ir_from_log.py monitor.log --rate 16000
 """
 
 import argparse
@@ -16,6 +17,11 @@ import re
 import sys
 
 SAMPLE_RATE_HZ = 8000
+
+# The firmware warns when fewer taps than this run from the peak to the end,
+# counting the peak itself (kMinTailTaps in node_runtime.cpp): the speaker's
+# ring after the peak wouldn't fit.
+MIN_TAIL_TAPS = 64
 
 # Matches anywhere in the line, so ESP-IDF prefixes like "I (1234) cal: "
 # are skipped. The \b stops words that merely end in "ir", like "fir,3,0.5",
@@ -61,10 +67,22 @@ def find_peak(taps):
     return index, taps[index]
 
 
+def taps_after_peak(taps):
+    """Return how many taps follow the peak."""
+    index, _ = find_peak(taps)
+    return len(taps) - index - 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", help="serial log containing ir,<index>,<value> lines")
     parser.add_argument("--csv", metavar="OUT", help="also write index,value rows")
+    parser.add_argument(
+        "--rate",
+        type=int,
+        default=SAMPLE_RATE_HZ,
+        help=f"sample rate in Hz, for the delay (default: {SAMPLE_RATE_HZ})",
+    )
     args = parser.parse_args()
 
     try:
@@ -87,7 +105,15 @@ def main():
     index, value = find_peak(taps)
     print(f"taps:  {len(taps)}")
     print(f"peak:  index {index}, value {value:.4f}")
-    print(f"delay: {1000.0 * index / SAMPLE_RATE_HZ:.3f} ms at {SAMPLE_RATE_HZ} Hz")
+    print(f"delay: {1000.0 * index / args.rate:.3f} ms at {args.rate} Hz")
+    after = taps_after_peak(taps)
+    print(f"after peak: {after} taps ({1000.0 * after / args.rate:.3f} ms)")
+    if after + 1 < MIN_TAIL_TAPS:
+        print(
+            f"warning: fewer than {MIN_TAIL_TAPS} taps from the peak on; "
+            "try a larger dsp.secondary_path_taps",
+            file=sys.stderr,
+        )
 
     if args.csv:
         with open(args.csv, "w", newline="", encoding="utf-8") as out:
