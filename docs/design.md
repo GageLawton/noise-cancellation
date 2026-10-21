@@ -217,9 +217,11 @@ The adaptive filtering algorithm driving cancellation. A variant of standard LMS
 RunningPower(n)       = (1-λ)·RunningPower(n-1) + λ·FilteredReference(n)²
 EffectiveStepSize(n)  = NormalizedStepSize / (ε + RunningPower(n))
 FilteredReference(n)  = SecondaryPath · ReferenceBasis(n)
-FilterWeights(n+1)    = FilterWeights(n) + EffectiveStepSize(n) · MicSignal(n) · FilteredReference(n)
+FilterWeights(n+1)    = FilterWeights(n) − EffectiveStepSize(n) · MicSignal(n) · FilteredReference(n)
 SynthOutput(n)        = FilterWeights(n) · ReferenceBasis(n)
 ```
+The update subtracts because the speaker's sound adds to the noise at the mic (MicSignal = hum + speaker), so the weights must move against the error to make the speaker oppose the hum; with a plus, the canceller would make the hum louder.
+
 Normalized over a fixed step size because FilteredReference's power shifts across calibration events and as tracked tones/harmonics change — a fixed µ tuned for one amplitude either goes unstable or needlessly slow when that amplitude changes. Normalizing makes the tunable constant dimensionless and amplitude-independent.
 
 | Symbol/Name | Meaning |
