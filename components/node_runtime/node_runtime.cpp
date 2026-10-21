@@ -648,6 +648,19 @@ void NodeRuntime::handleCommand(const char* line) {
             break;
         }
 
+        case Verb::Ir:
+            // The last calibration's impulse response, in the same format
+            // as doCalibrate() logs it, for tools/ir_from_log.py.
+            if (secondaryPathTaps_ == 0) {
+                std::printf("no impulse response yet\n");
+                break;
+            }
+            for (std::size_t k = 0; k < secondaryPathTaps_; ++k) {
+                std::printf("ir,%u,%.6f\n", static_cast<unsigned>(k),
+                            secondaryPath_[k]);
+            }
+            break;
+
         case Verb::Help:
             std::printf(
                 "commands:\n"
@@ -658,6 +671,7 @@ void NodeRuntime::handleCommand(const char* line) {
                 "  save               write the settings to flash\n"
                 "  recal              calibrate again now\n"
                 "  status             show the state, hum and levels now\n"
+                "  ir                 print the last impulse response\n"
                 "  help               this list\n"
                 "keys are the node.json names, e.g. "
                 "calibration.probe_duration_ms (see docs/config.md)\n");
