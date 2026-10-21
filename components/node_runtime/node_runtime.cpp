@@ -12,6 +12,7 @@
 #include "anc/ir_analysis.hpp"
 #include "anc/ir_estimator.hpp"
 #include "anc/output_limiter.hpp"
+#include "anc/pins.hpp"
 #include "anc/rms.hpp"
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -33,6 +34,10 @@ constexpr BaseType_t kNonRealtimeCore = 1;
 constexpr uint32_t kTelemetryPeriodMs = 1000;
 // Telemetry lines between stack reports (10 s).
 constexpr uint32_t kStackReportEvery = 10;
+
+// SyncTask sends one tick a second and listens this long for one back.
+constexpr uint32_t kSyncPeriodMs = 1000;
+constexpr uint32_t kSyncWaitMs   = 10;
 
 // Smallest free stack the task has ever had, in bytes, or 0 if it never
 // started. nullptr is not allowed here: FreeRTOS reads that as "this task".
@@ -572,6 +577,22 @@ void NodeRuntime::alignmentLoop() {
     }
 }
 
+void NodeRuntime::syncLoop() {
+    if (!syncTick_.begin(kPinSync1, kPinSync2)) {
+        ESP_LOGW(kTag, "sync line setup failed, running without it");
+        vTaskDelete(nullptr);  // doesn't return
+    }
+
+    for (;;) {
+        syncTick_.signal();
+        syncSent_.fetch_add(1, std::memory_order_relaxed);
+        if (syncTick_.wait(kSyncWaitMs)) {
+            syncHeard_.fetch_add(1, std::memory_order_relaxed);
+        }
+        vTaskDelay(pdMS_TO_TICKS(kSyncPeriodMs));
+    }
+}
+
 void NodeRuntime::handleCommand(const char* line) {
     const Command cmd = parseCommand(line);
     char value[24];
@@ -728,7 +749,7 @@ void NodeRuntime::telemetryLoop() {
             "up=%u state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
             "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
-            "hum=%.1fdBFS wnorm=%.3f faults=%u",
+            "hum=%.1fdBFS wnorm=%.3f faults=%u sync=%u/%u",
             static_cast<unsigned>(esp_timer_get_time() / 1000000), toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -746,7 +767,9 @@ void NodeRuntime::telemetryLoop() {
             micDbfs_.load(std::memory_order_relaxed),
             humDbfs_.load(std::memory_order_relaxed),
             weightNorm_.load(std::memory_order_relaxed),
-            static_cast<unsigned>(faults_.load(std::memory_order_relaxed)));
+            static_cast<unsigned>(faults_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(syncHeard_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(syncSent_.load(std::memory_order_relaxed)));
         // The line above shows tone 0 only. With harmonics, list them all
         // as frequency/lock.
         if (config_.numTones > 1) {
@@ -818,6 +841,13 @@ void NodeRuntime::spawnTasks() {
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->configLoop(); }, "config", 6144,
         this, 1, &configTask_, kNonRealtimeCore);
+
+    // SyncTask: the sync line between boards (M7). Core 1, away from the
+    // audio path; it sleeps almost all the time, so a small stack and a
+    // low priority are enough.
+    xTaskCreatePinnedToCore(
+        [](void* arg) { static_cast<NodeRuntime*>(arg)->syncLoop(); }, "sync", 3072,
+        this, 2, nullptr, kNonRealtimeCore);
 
     ESP_LOGI(kTag, "tasks spawned; type help for serial commands");
 }

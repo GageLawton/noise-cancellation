@@ -15,6 +15,7 @@
 #include "anc/fxlms_canceller.hpp"
 #include "anc/fxlms_processor.hpp"
 #include "anc/gain_ramp.hpp"
+#include "anc/gpio_sync_tick.hpp"
 #include "anc/i2s_audio_io.hpp"
 #include "anc/node_config.hpp"
 #include "anc/node_state.hpp"
@@ -99,6 +100,10 @@ private:
     // AlignmentTask body: drain {mic, synth} pairs from FilterTask. Core 1,
     // so nothing here can delay the audio path.
     void alignmentLoop();
+
+    // SyncTask body: once a second, send a tick on the sync line and wait
+    // briefly to hear one back (M7).
+    void syncLoop();
 
     // Samples per audio block: 4 ms at 8 kHz, the same as the DMA block.
     static constexpr std::size_t kBlockSamples = 32;
@@ -203,6 +208,11 @@ private:
     // coordinator. LocalCoordinator isn't thread-safe; only TelemetryTask
     // touches it.
     LocalCoordinator coordinator_;
+    // The sync line. Only SyncTask touches syncTick_; the counts are for
+    // telemetry. Node 1 hears its own tick only with a jumper from
+    // kPinSync1 to kPinSync2.
+    GpioSyncTick syncTick_;
+    std::atomic<uint32_t> syncSent_{0}, syncHeard_{0};
 
     // Where each tone starts after a calibration: the last locked
     // frequency if there is one, else the config's hint. Set at the start
