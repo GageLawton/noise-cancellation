@@ -18,8 +18,9 @@ import sys
 
 SAMPLE_RATE_HZ = 8000
 
-# The firmware warns when fewer taps than this follow the peak (kMinTailTaps
-# in node_runtime.cpp): the speaker's ring after the peak wouldn't fit.
+# The firmware warns when fewer taps than this run from the peak to the end,
+# counting the peak itself (kMinTailTaps in node_runtime.cpp): the speaker's
+# ring after the peak wouldn't fit.
 MIN_TAIL_TAPS = 64
 
 # Matches anywhere in the line, so ESP-IDF prefixes like "I (1234) cal: "
@@ -107,9 +108,9 @@ def main():
     print(f"delay: {1000.0 * index / args.rate:.3f} ms at {args.rate} Hz")
     after = taps_after_peak(taps)
     print(f"after peak: {after} taps ({1000.0 * after / args.rate:.3f} ms)")
-    if after < MIN_TAIL_TAPS:
+    if after + 1 < MIN_TAIL_TAPS:
         print(
-            f"warning: fewer than {MIN_TAIL_TAPS} taps after the peak; "
+            f"warning: fewer than {MIN_TAIL_TAPS} taps from the peak on; "
             "try a larger dsp.secondary_path_taps",
             file=sys.stderr,
         )

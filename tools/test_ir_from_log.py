@@ -120,11 +120,17 @@ def test_long_tail_has_no_warning(monkeypatch, tmp_path, capsys):
 
 
 def test_short_tail_warns(monkeypatch, tmp_path, capsys):
-    run_main(monkeypatch, tmp_path, [0.0] * 10 + [1.0] + [0.0] * 63)
+    run_main(monkeypatch, tmp_path, [0.0] * 10 + [1.0] + [0.0] * 62)
     captured = capsys.readouterr()
-    assert "after peak: 63 taps" in captured.out
-    assert "fewer than 64 taps after the peak" in captured.err
+    assert "after peak: 62 taps" in captured.out
+    assert "fewer than 64 taps from the peak on" in captured.err
     assert "dsp.secondary_path_taps" in captured.err
+
+
+def test_63_taps_after_the_peak_matches_the_firmware(monkeypatch, tmp_path, capsys):
+    # 63 after plus the peak itself is 64, which the firmware accepts.
+    run_main(monkeypatch, tmp_path, [1.0] + [0.0] * 63)
+    assert capsys.readouterr().err == ""
 
 
 def test_rate_sets_the_delay_and_tail_times(monkeypatch, tmp_path, capsys):
