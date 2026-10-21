@@ -252,9 +252,11 @@ NodeState NodeRuntime::doCalibrate() {
     // 3. Play the probe until the recording is full. probe_ isn't active
     //    yet, so begin() can't race FilterTask; the store publishes it.
     ESP_LOGI(
-        kTag, "calibration: playing %u ms probe",
-        static_cast<unsigned>(samples * 1000 / static_cast<uint32_t>(kSampleRateHz)));
+        kTag, "calibration: playing %u ms probe at amplitude %.2f",
+        static_cast<unsigned>(samples * 1000 / static_cast<uint32_t>(kSampleRateHz)),
+        static_cast<double>(config_.probeAmplitude));
     probeDone_.store(false, std::memory_order_relaxed);
+    probe_.setAmplitude(config_.probeAmplitude);
     probe_.begin(samples);
     processor_.store(&probe_, std::memory_order_release);
 
