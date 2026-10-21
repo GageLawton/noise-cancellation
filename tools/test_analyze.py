@@ -143,3 +143,31 @@ def test_json_survey_mode_with_stereo_note_on_stderr(tmp_path, monkeypatch, caps
     assert set(result["peaks"][0]) == {"hz", "magnitude"}
     assert result["peaks"][0]["hz"] == pytest.approx(FREQ, abs=0.5)
     assert "stereo file" in captured.err
+
+
+def test_json_harmonics_report_depth_at_twice_the_target(tmp_path, monkeypatch, capsys):
+    """Halving only the 120 Hz harmonic of a 60 Hz hum shows up as ~6 dB."""
+    baseline = tmp_path / "baseline.wav"
+    cancelled = tmp_path / "cancelled.wav"
+    base = make_tone(60.0, SECONDS, RATE, 0.4) + make_tone(120.0, SECONDS, RATE, 0.4)
+    canc = make_tone(60.0, SECONDS, RATE, 0.4) + make_tone(120.0, SECONDS, RATE, 0.2)
+    write_wav(baseline, base, channels=1)
+    write_wav(cancelled, canc, channels=1)
+    monkeypatch.setattr(sys, "argv", [
+        "analyze.py", str(baseline), str(cancelled),
+        "--freq", "60", "--harmonics", "1", "--json",
+    ])
+    main()
+    result = json.loads(capsys.readouterr().out)
+    assert result["depth_db"] == pytest.approx(0.0, abs=0.1)
+    assert len(result["harmonics"]) == 1
+    assert result["harmonics"][0]["hz"] == pytest.approx(120.0)
+    assert result["harmonics"][0]["depth_db"] == pytest.approx(6.02, abs=0.1)
+
+
+def test_negative_harmonics_is_an_error(tmp_path, monkeypatch):
+    path = tmp_path / "room.wav"
+    write_wav(path, make_tone(FREQ, SECONDS, RATE, 0.5), channels=1)
+    monkeypatch.setattr(sys, "argv", ["analyze.py", str(path), "--harmonics", "-1"])
+    with pytest.raises(SystemExit):
+        main()
