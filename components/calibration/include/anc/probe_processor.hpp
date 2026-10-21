@@ -30,6 +30,10 @@ public:
         recorder_.start(samples);
     }
 
+    // Changes the probe level. Takes effect at the next begin(), never in
+    // the middle of a run, so one recording always has one level.
+    void setAmplitude(float amplitude) { amplitude_ = amplitude; }
+
     void processBlock(const float* mic, float* out, std::size_t n) override {
         for (std::size_t i = 0; i < n; ++i) {
             if (recorder_.full()) {
