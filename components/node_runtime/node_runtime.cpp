@@ -30,6 +30,15 @@ constexpr BaseType_t kRealtimeCore    = 0;
 constexpr BaseType_t kNonRealtimeCore = 1;
 
 constexpr uint32_t kTelemetryPeriodMs = 1000;
+// Telemetry lines between stack reports (10 s).
+constexpr uint32_t kStackReportEvery = 10;
+
+// Smallest free stack the task has ever had, in bytes, or 0 if it never
+// started. nullptr is not allowed here: FreeRTOS reads that as "this task".
+unsigned stackFree(TaskHandle_t task) {
+    return task == nullptr ? 0u
+                           : static_cast<unsigned>(uxTaskGetStackHighWaterMark(task));
+}
 
 // How long the main task waits for FilterTask to act on a request. A
 // block is 4 ms, so these only run out if FilterTask has stopped.
@@ -667,7 +676,7 @@ void NodeRuntime::configLoop() {
 }
 
 void NodeRuntime::telemetryLoop() {
-    for (;;) {
+    for (uint32_t tick = 1;; ++tick) {
         NodeStatus s = status_.read();
         ESP_LOGI(
             "telemetry",
@@ -689,6 +698,16 @@ void NodeRuntime::telemetryLoop() {
             static_cast<unsigned>(alignSamples_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignDrops_.load(std::memory_order_relaxed)),
             micDbfs_.load(std::memory_order_relaxed));
+        if (tick % kStackReportEvery == 0) {
+            // In ESP-IDF the high-water mark is in bytes. 0 means the task
+            // never started. nullptr asks about this task itself.
+            ESP_LOGI("telemetry",
+                     "stack free: audio_io=%u filter=%u alignment=%u config=%u "
+                     "telemetry=%u",
+                     stackFree(audioIoTask_), stackFree(filterTask_),
+                     stackFree(alignmentTask_), stackFree(configTask_),
+                     static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+        }
         vTaskDelay(pdMS_TO_TICKS(kTelemetryPeriodMs));
     }
 }
@@ -716,19 +735,19 @@ void NodeRuntime::spawnTasks() {
     // below the top priority (ESP-IDF's IPC tasks keep the very top).
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->audioIoLoop(); }, "audio_io",
-        4096, this, configMAX_PRIORITIES - 2, nullptr, kRealtimeCore);
+        4096, this, configMAX_PRIORITIES - 2, &audioIoTask_, kRealtimeCore);
 
     // AlignmentTask: frequency tracking and drift checks (M6). Core 1, so
     // it can fall behind without touching the audio path.
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->alignmentLoop(); }, "alignment",
-        4096, this, 3, nullptr, kNonRealtimeCore);
+        4096, this, 3, &alignmentTask_, kNonRealtimeCore);
 
     // ConfigTask: serial commands. Lowest priority on core 1. A bigger
     // stack than the others, because `save` runs cJSON and LittleFS.
     xTaskCreatePinnedToCore(
         [](void* arg) { static_cast<NodeRuntime*>(arg)->configLoop(); }, "config", 6144,
-        this, 1, nullptr, kNonRealtimeCore);
+        this, 1, &configTask_, kNonRealtimeCore);
 
     ESP_LOGI(kTag, "tasks spawned; type help for serial commands");
 }
