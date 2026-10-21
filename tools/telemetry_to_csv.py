@@ -14,6 +14,7 @@ Usage:
     python tools/telemetry_to_csv.py monitor.log
     python tools/telemetry_to_csv.py monitor.log --out telemetry.csv
     python tools/telemetry_to_csv.py monitor.log --columns state,resid
+    python tools/telemetry_to_csv.py monitor.log --state RUN
 """
 
 import argparse
@@ -90,6 +91,17 @@ def select_columns(columns, wanted):
     return selected
 
 
+def select_rows(rows, state):
+    """Return the rows whose ``state`` value equals state.
+
+    Exits with a message if no row matches.
+    """
+    selected = [row for row in rows if row.get("state") == state]
+    if not selected:
+        sys.exit(f"No telemetry lines with state={state}")
+    return selected
+
+
 def write_csv(columns, rows, out):
     # extrasaction="ignore" drops keys that aren't in columns, for --columns.
     writer = csv.DictWriter(out, fieldnames=columns, restval="", extrasaction="ignore")
@@ -106,6 +118,10 @@ def main():
         metavar="KEYS",
         help="comma-separated keys to keep, for example state,resid (default: all)",
     )
+    parser.add_argument(
+        "--state",
+        help="keep only rows with this state, for example RUN (default: all)",
+    )
     args = parser.parse_args()
 
     try:
@@ -116,6 +132,9 @@ def main():
 
     if not rows:
         sys.exit("No telemetry: lines found")
+
+    if args.state:
+        rows = select_rows(rows, args.state)
 
     if args.columns:
         columns = select_columns(columns, args.columns)
