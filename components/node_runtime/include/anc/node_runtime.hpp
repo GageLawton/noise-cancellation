@@ -23,6 +23,7 @@
 #include "anc/probe_processor.hpp"
 #include "anc/silence_processor.hpp"
 #include "anc/spsc_ring_buffer.hpp"
+#include "anc/sync_receiver.hpp"
 #include "anc/tone_processor.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -102,7 +103,7 @@ private:
     void alignmentLoop();
 
     // SyncTask body: once a second, send a tick on the sync line and wait
-    // briefly to hear one back (M7).
+    // briefly to hear one back, along with a framed SyncMessage (M7).
     void syncLoop();
 
     // Samples per audio block: 4 ms at 8 kHz, the same as the DMA block.
@@ -213,6 +214,14 @@ private:
     // kPinSync1 to kPinSync2.
     GpioSyncTick syncTick_;
     std::atomic<uint32_t> syncSent_{0}, syncHeard_{0};
+    // Each tick also carries a SyncMessage. Until there's a second board,
+    // node 1 sends it to itself through writeFrame / readFrame. Only
+    // SyncTask touches syncRx_ and syncSeq_; the atomics copy its counts
+    // for telemetry.
+    SyncReceiver syncRx_;
+    uint32_t syncSeq_ = 0;
+    std::atomic<uint32_t> syncRxAccepted_{0}, syncRxMissed_{0};
+    std::atomic<uint32_t> syncBadFrames_{0};  // frames readFrame rejected
 
     // Where each tone starts after a calibration: the last locked
     // frequency if there is one, else the config's hint. Set at the start
