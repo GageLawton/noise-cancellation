@@ -16,6 +16,23 @@ float tone(double freqHz, float amplitude, int n) {
     return amplitude * static_cast<float>(std::sin(kTwoPi * freqHz * n / kFs));
 }
 
+void test_pulls_in_from_48_to_50() {
+    anc::Pll pll(48.0f, kFs);
+    for (int n = 0; n < 3 * 8000; ++n) {
+        pll.update(tone(50.0f, 0.5f, n));
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 50.0f, pll.frequencyHz());
+}
+
+void test_locks_onto_clean_50hz_tone() {
+    anc::Pll pll(50.0f, kFs);
+    for (int n = 0; n < 2 * 8000; ++n) {
+        pll.update(tone(50.0f, 0.5f, n));
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 50.0f, pll.frequencyHz());
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 0.0f, pll.phaseError());
+}
+
 void test_pulls_in_from_58_to_60() {
     anc::Pll pll(58.0f, kFs);
     for (int n = 0; n < 3 * 8000; ++n) {
@@ -107,6 +124,8 @@ void test_losing_the_tone_unlocks() {
 
 int main() {
     UNITY_BEGIN();
+    RUN_TEST(test_pulls_in_from_48_to_50);
+    RUN_TEST(test_locks_onto_clean_50hz_tone);
     RUN_TEST(test_pulls_in_from_58_to_60);
     RUN_TEST(test_stays_on_frequency);
     RUN_TEST(test_follows_slow_drift);
