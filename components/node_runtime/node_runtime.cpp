@@ -747,6 +747,24 @@ void NodeRuntime::telemetryLoop() {
             humDbfs_.load(std::memory_order_relaxed),
             weightNorm_.load(std::memory_order_relaxed),
             static_cast<unsigned>(faults_.load(std::memory_order_relaxed)));
+        // The line above shows tone 0 only. With harmonics, list them all
+        // as frequency/lock.
+        if (config_.numTones > 1) {
+            char tones[96];
+            std::size_t used = 0;
+            for (std::size_t t = 0; t < config_.numTones && used < sizeof(tones); ++t) {
+                const int n = std::snprintf(
+                    tones + used, sizeof(tones) - used, "%s%.2f/%d", t == 0 ? "" : " ",
+                    trackedFreqHz_[t].load(std::memory_order_relaxed),
+                    static_cast<int>(
+                        trackedLocked_[t].load(std::memory_order_relaxed)));
+                if (n < 0) {
+                    break;
+                }
+                used += static_cast<std::size_t>(n);
+            }
+            ESP_LOGI("telemetry", "tones: %s", tones);
+        }
         if (tick % kStackReportEvery == 0) {
             // In ESP-IDF the high-water mark is in bytes. 0 means the task
             // never started. nullptr asks about this task itself.
