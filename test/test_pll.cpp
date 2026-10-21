@@ -24,6 +24,15 @@ void test_pulls_in_from_58_to_60() {
     TEST_ASSERT_FLOAT_WITHIN(0.05f, 60.0f, pll.frequencyHz());
 }
 
+// Mains hum is 50 Hz in most of the world.
+void test_pulls_in_from_48_to_50() {
+    anc::Pll pll(48.0f, kFs);
+    for (int n = 0; n < 3 * 8000; ++n) {
+        pll.update(tone(50.0, 0.5f, n));
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 50.0f, pll.frequencyHz());
+}
+
 void test_stays_on_frequency() {
     anc::Pll pll(60.0f, kFs);
     for (int n = 0; n < 2 * 8000; ++n) {
@@ -74,6 +83,15 @@ void test_locks_onto_clean_tone() {
     TEST_ASSERT_TRUE(pll.locked());
 }
 
+void test_locks_onto_clean_50_hz_tone() {
+    anc::Pll pll(50.0f, kFs);
+    TEST_ASSERT_FALSE(pll.locked());
+    for (int n = 0; n < 2 * 8000; ++n) {
+        pll.update(tone(50.0, 0.5f, n));
+    }
+    TEST_ASSERT_TRUE(pll.locked());
+}
+
 void test_does_not_lock_on_noise() {
     anc::Pll pll(60.0f, kFs);
     anc::ProbeGenerator noise(3, 0.3f);
@@ -108,10 +126,12 @@ void test_losing_the_tone_unlocks() {
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_pulls_in_from_58_to_60);
+    RUN_TEST(test_pulls_in_from_48_to_50);
     RUN_TEST(test_stays_on_frequency);
     RUN_TEST(test_follows_slow_drift);
     RUN_TEST(test_ignores_sudden_jump);
     RUN_TEST(test_locks_onto_clean_tone);
+    RUN_TEST(test_locks_onto_clean_50_hz_tone);
     RUN_TEST(test_does_not_lock_on_noise);
     RUN_TEST(test_stays_locked_with_noise_on_top);
     RUN_TEST(test_losing_the_tone_unlocks);
