@@ -61,6 +61,38 @@ void test_never_overshoots_the_target() {
     TEST_ASSERT_TRUE(ramp.gain() == 0.0f);
 }
 
+void test_done_once_the_ramp_finishes() {
+    anc::GainRamp ramp(400);
+    TEST_ASSERT_TRUE(ramp.done());  // a new ramp has nothing to do
+
+    ramp.setTarget(1.0f);
+    TEST_ASSERT_FALSE(ramp.done());
+    for (int i = 0; i < 399; ++i) {
+        ramp.process(1.0f);
+    }
+    TEST_ASSERT_FALSE(ramp.done());  // one sample to go
+    ramp.process(1.0f);
+    TEST_ASSERT_TRUE(ramp.done());
+    TEST_ASSERT_TRUE(ramp.gain() == 1.0f);
+}
+
+void test_retarget_midway_ramps_from_the_current_gain() {
+    anc::GainRamp ramp(400);
+    ramp.setTarget(1.0f);
+    for (int i = 0; i < 200; ++i) {
+        ramp.process(1.0f);
+    }
+
+    ramp.setTarget(0.0f);
+    // Starts down from about 0.5, where the fade-in got to, not from 1.
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.5f, ramp.process(1.0f));
+    for (int i = 1; i < 400; ++i) {
+        ramp.process(1.0f);
+    }
+    TEST_ASSERT_TRUE(ramp.done());
+    TEST_ASSERT_TRUE(ramp.gain() == 0.0f);
+}
+
 }  // namespace
 
 int main() {
@@ -69,5 +101,7 @@ int main() {
     RUN_TEST(test_fades_in_over_the_ramp_length);
     RUN_TEST(test_fades_back_out_to_exactly_zero);
     RUN_TEST(test_never_overshoots_the_target);
+    RUN_TEST(test_done_once_the_ramp_finishes);
+    RUN_TEST(test_retarget_midway_ramps_from_the_current_gain);
     return UNITY_END();
 }
