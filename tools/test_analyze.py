@@ -4,12 +4,14 @@ Synthetic numpy signals only -- no WAV files and no hardware, so these
 run anywhere `pytest tools` does.
 """
 
+import json
 import math
+import sys
 import wave
 
 import numpy as np
 import pytest
-from analyze import dominant_peak, narrowband_rms, read_wav
+from analyze import dominant_peak, main, narrowband_rms, read_wav
 from make_tone import make_tone
 
 RATE = 8000
@@ -109,3 +111,35 @@ def test_read_wav_rejects_non_16_bit(tmp_path):
         w.writeframes(b"\x80" * 100)
     with pytest.raises(SystemExit):
         read_wav(str(path))
+
+
+def test_json_comparison_mode(tmp_path, monkeypatch, capsys):
+    baseline = tmp_path / "baseline.wav"
+    cancelled = tmp_path / "cancelled.wav"
+    write_wav(baseline, make_tone(FREQ, SECONDS, RATE, 0.5), channels=1)
+    write_wav(cancelled, make_tone(FREQ, SECONDS, RATE, 0.05), channels=1)
+    monkeypatch.setattr(
+        sys, "argv", ["analyze.py", str(baseline), str(cancelled), "--json"]
+    )
+    main()
+    result = json.loads(capsys.readouterr().out)
+    assert set(result) == {
+        "freq_hz", "bandwidth_hz", "baseline_rms", "cancelled_rms", "depth_db"
+    }
+    assert result["freq_hz"] == pytest.approx(FREQ, abs=0.5)
+    assert result["bandwidth_hz"] == 2.0
+    assert result["depth_db"] == pytest.approx(20.0, abs=0.5)
+
+
+def test_json_survey_mode_with_stereo_note_on_stderr(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "room.wav"
+    write_wav(path, make_tone(FREQ, SECONDS, RATE, 0.5, stereo=True), channels=2)
+    monkeypatch.setattr(sys, "argv", ["analyze.py", str(path), "--json", "--top", "3"])
+    main()
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["freq_hz"] == pytest.approx(FREQ, abs=0.5)
+    assert len(result["peaks"]) == 3
+    assert set(result["peaks"][0]) == {"hz", "magnitude"}
+    assert result["peaks"][0]["hz"] == pytest.approx(FREQ, abs=0.5)
+    assert "stereo file" in captured.err
