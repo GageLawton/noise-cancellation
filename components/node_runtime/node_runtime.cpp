@@ -8,6 +8,7 @@
 #include "anc/command_parser.hpp"
 #include "anc/config_keys.hpp"
 #include "anc/decibels.hpp"
+#include "anc/goertzel.hpp"
 #include "anc/ir_analysis.hpp"
 #include "anc/ir_estimator.hpp"
 #include "anc/output_limiter.hpp"
@@ -531,6 +532,16 @@ void NodeRuntime::alignmentLoop() {
             if (configured) {
                 align_.update(pair.mic, pair.synth);
             }
+            humBuf_[humCount_++] = pair.mic;
+            if (humCount_ == kHumSamples) {
+                // 100 ms holds a whole number of cycles of 60 Hz (and 50 Hz),
+                // so the measurement leaks little from nearby frequencies.
+                const float amplitude = toneAmplitude(
+                    humBuf_, kHumSamples,
+                    trackedFreqHz_[0].load(std::memory_order_relaxed), kSampleRateHz);
+                humDbfs_.store(amplitudeToDb(amplitude), std::memory_order_relaxed);
+                humCount_ = 0;
+            }
             ++received;
         }
         if (received > 0) {
@@ -695,7 +706,8 @@ void NodeRuntime::telemetryLoop() {
             "telemetry",
             "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
-            "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS",
+            "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
+            "hum=%.1fdBFS",
             toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -710,7 +722,8 @@ void NodeRuntime::telemetryLoop() {
             static_cast<unsigned>(underruns_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignSamples_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignDrops_.load(std::memory_order_relaxed)),
-            micDbfs_.load(std::memory_order_relaxed));
+            micDbfs_.load(std::memory_order_relaxed),
+            humDbfs_.load(std::memory_order_relaxed));
         if (tick % kStackReportEvery == 0) {
             // In ESP-IDF the high-water mark is in bytes. 0 means the task
             // never started. nullptr asks about this task itself.
