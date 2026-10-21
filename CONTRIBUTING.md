@@ -14,6 +14,31 @@ and
 Leave a comment on the issue saying you're taking it, so two people don't
 do the same work. Questions go in a comment on the issue too.
 
+## What the labels mean
+
+Every issue has a few labels. They tell you how big it is, whether you
+need the board, and what part of the code it touches.
+
+| Label | What it means for you |
+|---|---|
+| `good first issue` | Small and well described, a good place to start. |
+| `help wanted` | Open for anyone to pick up; extra hands are welcome. |
+| `stretch` | A bigger task (30 to 60 minutes) for when you want to dig in. |
+| `no hardware needed` | You can do and test it on a laptop, no ESP32 or audio parts. |
+| `hardware needed` | You need the ESP32-S3 board with the mic and amp wired up. |
+| `bench bring-up` | Running and measuring the full firmware on a real board. |
+| `roadmap` | A tracking issue for the project plan, not a task to pick up. |
+| `M2` to `M7` | Which milestone the issue belongs to, from `M2: audio plumbing` to `M7: multi-node`; see the [build order](docs/design.md#104-build-order-skeleton-first). |
+| `c++` | Touches the C++ firmware or the portable library code. |
+| `python` | Touches the Python tools in `tools/`. |
+| `dsp` | Signal-processing math; portable and testable on a laptop. |
+| `tests` | Adds or improves the host unit tests. |
+| `documentation` | Changes the docs, not the code. |
+| `ci` | GitHub Actions and other repository automation. |
+
+The full list is on the
+[Labels page](https://github.com/GageLawton/noise-cancellation/labels).
+
 ## Running the host tests
 
 No ESP32 needed. From the repo root:
