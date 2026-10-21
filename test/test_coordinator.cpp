@@ -54,6 +54,30 @@ void test_ninth_node_is_ignored() {
     TEST_ASSERT_FALSE(asInterface.latest(9, out));
 }
 
+anc::NodeStatus statusAt(uint64_t nodeId, uint32_t timestampMs) {
+    anc::NodeStatus s{};
+    s.nodeId      = nodeId;
+    s.timestampMs = timestampMs;
+    return s;
+}
+
+void test_stale_count_finds_the_quiet_node() {
+    anc::LocalCoordinator coordinator;
+    coordinator.report(statusAt(1, 1000));
+    coordinator.report(statusAt(2, 5000));
+
+    // Node 1 is 5000 ms old, node 2 only 1000 ms.
+    TEST_ASSERT_EQUAL_size_t(1, coordinator.staleCount(6000, 2000));
+}
+
+void test_stale_count_survives_counter_wraparound() {
+    anc::LocalCoordinator coordinator;
+    coordinator.report(statusAt(1, 0xFFFFFF00u));
+
+    // The counter wrapped: the report is only 0x200 = 512 ms old.
+    TEST_ASSERT_EQUAL_size_t(0, coordinator.staleCount(0x00000100u, 1000));
+}
+
 }  // namespace
 
 int main() {
@@ -62,5 +86,7 @@ int main() {
     RUN_TEST(test_report_then_latest_returns_it);
     RUN_TEST(test_second_report_replaces_the_first);
     RUN_TEST(test_ninth_node_is_ignored);
+    RUN_TEST(test_stale_count_finds_the_quiet_node);
+    RUN_TEST(test_stale_count_survives_counter_wraparound);
     return UNITY_END();
 }
