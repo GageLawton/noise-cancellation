@@ -83,7 +83,11 @@ void test_cancel_hum_that_drifts() {
                 static_cast<double>(engine.frequencyHz(0)),
                 engine.locked(0) ? " (locked)" : "");
     TEST_ASSERT_TRUE(std::isfinite(dropDb));
-    TEST_ASSERT_TRUE(dropDb >= 15.0f);
+    // The issue asks for at least 15 dB, but the canceller's weights alone
+    // reach about 42 dB on this slow glide even with frequency following
+    // turned off (about 80 dB with it). 60 dB sits between the two, so this
+    // fails if the tracker's frequency stops reaching the canceller.
+    TEST_ASSERT_TRUE(dropDb >= 60.0f);
 }
 
 }  // namespace
