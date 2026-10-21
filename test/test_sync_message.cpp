@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include "anc/sync_message.hpp"
 #include "unity.h"
 
@@ -8,6 +10,33 @@ namespace {
 
 void test_round_trip() {
     const anc::SyncMessage sent{0xA1B2C3D4E5F60718ull, 123456789012345ull, 0xDEADBEEFu};
+    uint8_t bytes[anc::kSyncMessageBytes];
+    anc::serialize(sent, bytes);
+
+    anc::SyncMessage received{};
+    TEST_ASSERT_TRUE(anc::deserialize(bytes, sizeof(bytes), received));
+    TEST_ASSERT_TRUE(received.nodeId == sent.nodeId);
+    TEST_ASSERT_TRUE(received.timestampUs == sent.timestampUs);
+    TEST_ASSERT_EQUAL_HEX32(sent.sequenceNumber, received.sequenceNumber);
+}
+
+void test_round_trip_with_largest_values() {
+    const anc::SyncMessage sent{UINT64_MAX, UINT64_MAX, UINT32_MAX};
+    uint8_t bytes[anc::kSyncMessageBytes];
+    anc::serialize(sent, bytes);
+
+    anc::SyncMessage received{};
+    TEST_ASSERT_TRUE(anc::deserialize(bytes, sizeof(bytes), received));
+    TEST_ASSERT_TRUE(received.nodeId == UINT64_MAX);
+    TEST_ASSERT_TRUE(received.timestampUs == UINT64_MAX);
+    TEST_ASSERT_EQUAL_HEX32(UINT32_MAX, received.sequenceNumber);
+}
+
+void test_round_trip_with_distinct_bytes() {
+    // No byte value repeats anywhere in the message, so a swapped, shifted
+    // or dropped byte changes the decoded value.
+    const anc::SyncMessage sent{0x0102030405060708ull, 0x1112131415161718ull,
+                                0x21222324u};
     uint8_t bytes[anc::kSyncMessageBytes];
     anc::serialize(sent, bytes);
 
@@ -42,6 +71,8 @@ void test_wrong_length_is_rejected() {
 int main() {
     UNITY_BEGIN();
     RUN_TEST(test_round_trip);
+    RUN_TEST(test_round_trip_with_largest_values);
+    RUN_TEST(test_round_trip_with_distinct_bytes);
     RUN_TEST(test_little_endian_byte_order);
     RUN_TEST(test_wrong_length_is_rejected);
     return UNITY_END();
