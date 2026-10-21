@@ -619,6 +619,18 @@ void NodeRuntime::handleCommand(const char* line) {
             std::printf("recalibrating\n");
             break;
 
+        case Verb::Status: {
+            // The same atomics telemetryLoop() prints, on demand.
+            const NodeStatus st = status_.read();
+            std::printf(
+                "state=%s freq=%.2f lock=%d resid=%.1fdBFS mic=%.1fdBFS\n",
+                toString(st.state), trackedFreqHz_[0].load(std::memory_order_relaxed),
+                static_cast<int>(trackedLocked_[0].load(std::memory_order_relaxed)),
+                residualDbfs_.load(std::memory_order_relaxed),
+                micDbfs_.load(std::memory_order_relaxed));
+            break;
+        }
+
         case Verb::Help:
             std::printf(
                 "commands:\n"
@@ -628,6 +640,7 @@ void NodeRuntime::handleCommand(const char* line) {
                 "calibration)\n"
                 "  save               write the settings to flash\n"
                 "  recal              calibrate again now\n"
+                "  status             show the state, hum and levels now\n"
                 "  help               this list\n"
                 "keys are the node.json names, e.g. "
                 "calibration.probe_duration_ms (see docs/config.md)\n");

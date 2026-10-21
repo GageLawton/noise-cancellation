@@ -30,6 +30,17 @@ void test_words_without_arguments() {
     TEST_ASSERT_TRUE(anc::parseCommand("help").verb == Verb::Help);
 }
 
+void test_status() {
+    TEST_ASSERT_TRUE(anc::parseCommand("status").verb == Verb::Status);
+    TEST_ASSERT_TRUE(anc::parseCommand(" status\r\n").verb == Verb::Status);
+}
+
+void test_status_with_extra_word_is_invalid() {
+    // Rejected the same way as "recal extra".
+    TEST_ASSERT_TRUE(anc::parseCommand("recal extra").verb == Verb::Invalid);
+    TEST_ASSERT_TRUE(anc::parseCommand("status extra").verb == Verb::Invalid);
+}
+
 void test_extra_spaces_and_line_ending() {
     const anc::Command cmd = anc::parseCommand("  set   output.ceiling\t 0.5 \r\n");
     TEST_ASSERT_TRUE(cmd.verb == Verb::Set);
@@ -83,6 +94,8 @@ int main() {
     RUN_TEST(test_set_without_value_is_invalid);
     RUN_TEST(test_unknown_or_empty_is_invalid);
     RUN_TEST(test_extra_words_are_invalid);
+    RUN_TEST(test_status);
+    RUN_TEST(test_status_with_extra_word_is_invalid);
     RUN_TEST(test_too_long_key_or_value_is_invalid);
     return UNITY_END();
 }

@@ -7,8 +7,8 @@ namespace anc {
 
 // Serial config commands (design doc 5.7), so settings can change without
 // reflashing:
-//   get <key>    set <key> <value>    save    recal    help
-enum class Verb { Get, Set, Save, Recal, Help, Invalid };
+//   get <key>    set <key> <value>    save    recal    status    help
+enum class Verb { Get, Set, Save, Recal, Status, Help, Invalid };
 
 struct Command {
     Verb verb;
@@ -72,6 +72,8 @@ inline Command parseCommand(const char* line) {
         cmd.verb = Verb::Save;
     } else if (std::strcmp(verb, "recal") == 0) {
         cmd.verb = Verb::Recal;
+    } else if (std::strcmp(verb, "status") == 0) {
+        cmd.verb = Verb::Status;
     } else if (std::strcmp(verb, "help") == 0) {
         cmd.verb = Verb::Help;
     } else {
