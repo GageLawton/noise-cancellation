@@ -1,5 +1,6 @@
 """ir_from_log.py finds impulse response taps inside noisy serial logs."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -138,3 +139,24 @@ def test_rate_sets_the_delay_and_tail_times(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "delay: 1.000 ms at 16000 Hz" in out
     assert "after peak: 160 taps (10.000 ms)" in out
+
+
+def test_main_json_reports_peak_and_missing_taps(tmp_path):
+    log = tmp_path / "gappy.log"
+    log.write_text("ir,0,0.1\nir,2,0.9\nir,4,-0.2\n")
+    out = tmp_path / "ir.csv"
+    script = Path(__file__).with_name("ir_from_log.py")
+    result = subprocess.run(
+        [sys.executable, str(script), str(log), "--json", "--csv", str(out)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    summary = json.loads(result.stdout)
+    assert summary["taps"] == 5
+    assert summary["peak_index"] == 2
+    assert summary["peak_value"] == pytest.approx(0.9)
+    assert summary["delay_ms"] == pytest.approx(0.25)
+    assert summary["taps_after_peak"] == 2
+    assert summary["missing"] == [1, 3]
+    assert len(out.read_text().splitlines()) == 6
