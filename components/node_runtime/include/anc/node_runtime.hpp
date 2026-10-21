@@ -163,6 +163,7 @@ private:
     FxlmsProcessor fxlms_{canceller_};
     std::atomic<float> residualDbfs_{-120.0f};  // what's left of the hum
     std::atomic<bool> converged_{false};
+    std::atomic<float> weightNorm_{0.0f};  // canceller_.weightNorm()
 
     // Safety net for the live canceller (design doc 5.9). FilterTask feeds
     // it each mic block's power while the canceller runs and raises

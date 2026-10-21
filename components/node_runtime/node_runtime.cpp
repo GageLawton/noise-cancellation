@@ -491,6 +491,7 @@ void NodeRuntime::filterLoop() {
             residualDbfs_.store(amplitudeToDb(std::sqrt(canceller_.residualPower())),
                                 std::memory_order_relaxed);
             converged_.store(canceller_.converged(), std::memory_order_relaxed);
+            weightNorm_.store(canceller_.weightNorm(), std::memory_order_relaxed);
 
             const float level = rms(mic, kBlockSamples);
             divergence_.update(level * level);
@@ -708,7 +709,7 @@ void NodeRuntime::telemetryLoop() {
             "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
             "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
-            "hum=%.1fdBFS",
+            "hum=%.1fdBFS wnorm=%.3f",
             toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -724,7 +725,8 @@ void NodeRuntime::telemetryLoop() {
             static_cast<unsigned>(alignSamples_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(alignDrops_.load(std::memory_order_relaxed)),
             micDbfs_.load(std::memory_order_relaxed),
-            humDbfs_.load(std::memory_order_relaxed));
+            humDbfs_.load(std::memory_order_relaxed),
+            weightNorm_.load(std::memory_order_relaxed));
         if (tick % kStackReportEvery == 0) {
             // In ESP-IDF the high-water mark is in bytes. 0 means the task
             // never started. nullptr asks about this task itself.
