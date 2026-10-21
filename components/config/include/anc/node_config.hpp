@@ -43,6 +43,7 @@ struct NodeConfig {
     uint8_t numTones;
     float maxDriftRateHzPerSec;       // self-lock rate limit
     float watchCorrelationThreshold;  // low-confidence gate
+    float minLockAmplitude;           // hum amplitude the PLL needs to lock, (0, 1]
 
     // --- output ---
     float outputCeiling;      // limiter ceiling, (0, 1]

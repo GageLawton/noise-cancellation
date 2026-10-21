@@ -28,6 +28,7 @@ NodeConfig NodeConfig::defaults() {
     }
     c.maxDriftRateHzPerSec      = 2.0f;
     c.watchCorrelationThreshold = 0.15f;
+    c.minLockAmplitude          = 0.1f;  // about -20 dBFS, today's PLL lock level
 
     c.outputCeiling     = 0.8f;
     c.testToneHz        = 440.0f;
@@ -73,6 +74,8 @@ bool NodeConfig::validate() const {
         watchCorrelationThreshold >= correlationThreshold) {
         return false;
     }
+    if (minLockAmplitude <= 0.0f || minLockAmplitude > 1.0f)
+        return false;
 
     if (outputCeiling <= 0.0f || outputCeiling > 1.0f)
         return false;
