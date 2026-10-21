@@ -91,6 +91,7 @@ bool parseJson(const char* text, NodeConfig& cfg) {
     if (const cJSON* cal =
             cJSON_GetObjectItemCaseSensitive(root.get(), "calibration")) {
         readU32(cal, "probe_duration_ms", cfg.probeDurationMs);
+        readFloat(cal, "probe_amplitude", cfg.probeAmplitude);
         readFloat(cal, "correlation_threshold", cfg.correlationThreshold);
         readU32(cal, "correlation_window_ms", cfg.correlationWindowMs);
         readU32(cal, "backstop_interval_ms", cfg.backstopIntervalMs);
@@ -142,6 +143,7 @@ CjsonStringPtr serializeJson(const NodeConfig& cfg) {
 
     cJSON* cal = cJSON_AddObjectToObject(root.get(), "calibration");
     cJSON_AddNumberToObject(cal, "probe_duration_ms", cfg.probeDurationMs);
+    cJSON_AddNumberToObject(cal, "probe_amplitude", cfg.probeAmplitude);
     cJSON_AddNumberToObject(cal, "correlation_threshold", cfg.correlationThreshold);
     cJSON_AddNumberToObject(cal, "correlation_window_ms", cfg.correlationWindowMs);
     cJSON_AddNumberToObject(cal, "backstop_interval_ms", cfg.backstopIntervalMs);
