@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from telemetry_to_csv import parse_line, select_columns
+from telemetry_to_csv import parse_line, select_columns, select_rows
 
 TOOL = Path(__file__).with_name("telemetry_to_csv.py")
 
@@ -70,3 +70,15 @@ def test_unknown_column_exits_with_its_name():
     with pytest.raises(SystemExit) as error:
         select_columns(["line", "state"], "state,volume")
     assert "volume" in str(error.value)
+
+
+def test_state_keeps_only_matching_rows(tmp_path):
+    rows = run_tool(tmp_path, "--state", "RUN")
+    assert rows[0] == ["line", "state", "blocks", "resid"]
+    assert rows[1:] == [["3", "RUN", "", "-40.0"]]
+
+
+def test_unknown_state_exits_with_message():
+    with pytest.raises(SystemExit) as error:
+        select_rows([{"line": 2, "state": "IDLE"}], "RUN")
+    assert str(error.value) == "No telemetry lines with state=RUN"
