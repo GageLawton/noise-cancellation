@@ -56,6 +56,43 @@ and a cancelled recording.
 |---|---|---|---|---|---|---|---|
 | | | | | | | | |
 
+## First boot (#253)
+
+Bench check [#253](https://github.com/GageLawton/noise-cancellation/issues/253):
+first boot of the full firmware, from BOOT to RUN.
+
+| Date | Commit | Reached RUN (yes/no) | Peak tap | Delay ms | Underruns after 2 min | Notes |
+|---|---|---|---|---|---|---|
+| | | | | | | |
+
+## Hum level and lock (#264)
+
+Bench check [#264](https://github.com/GageLawton/noise-cancellation/issues/264):
+how loud is the hum the frequency tracker sees?
+
+| Date | Commit | Hum source | hum dBFS | Locked at default (yes/no) | Lowest min_lock_amplitude that locked | Notes |
+|---|---|---|---|---|---|---|
+| | | | | | | |
+
+## Stack headroom (#265)
+
+Bench check [#265](https://github.com/GageLawton/noise-cancellation/issues/265):
+stack and timing headroom over 10 minutes. Each task column is the smallest
+free stack seen, in bytes.
+
+| Date | Commit | audio_io | filter | alignment | config | telemetry | Notes |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
+## Sync loopback (#267)
+
+Bench check [#267](https://github.com/GageLawton/noise-cancellation/issues/267):
+sync tick loopback with a jumper wire.
+
+| Date | Commit | Received with jumper | Received without | Worst round trip µs | Notes |
+|---|---|---|---|---|---|
+| | | | | | |
+
 ## Hardware
 
 The setup these results were measured on. The parts and wiring are in
