@@ -41,6 +41,15 @@ void test_status_with_extra_word_is_invalid() {
     TEST_ASSERT_TRUE(anc::parseCommand("status extra").verb == Verb::Invalid);
 }
 
+void test_ir() {
+    TEST_ASSERT_TRUE(anc::parseCommand("ir").verb == Verb::Ir);
+    TEST_ASSERT_TRUE(anc::parseCommand(" ir\r\n").verb == Verb::Ir);
+}
+
+void test_ir_with_extra_word_is_invalid() {
+    TEST_ASSERT_TRUE(anc::parseCommand("ir extra").verb == Verb::Invalid);
+}
+
 void test_extra_spaces_and_line_ending() {
     const anc::Command cmd = anc::parseCommand("  set   output.ceiling\t 0.5 \r\n");
     TEST_ASSERT_TRUE(cmd.verb == Verb::Set);
@@ -96,6 +105,8 @@ int main() {
     RUN_TEST(test_extra_words_are_invalid);
     RUN_TEST(test_status);
     RUN_TEST(test_status_with_extra_word_is_invalid);
+    RUN_TEST(test_ir);
+    RUN_TEST(test_ir_with_extra_word_is_invalid);
     RUN_TEST(test_too_long_key_or_value_is_invalid);
     return UNITY_END();
 }
