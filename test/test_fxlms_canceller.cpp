@@ -266,6 +266,32 @@ void test_default_settings_cancel_through_firmware_sized_delay() {
     }
 }
 
+void test_new_canceller_has_zero_weight_norm() {
+    canc = anc::FxlmsCanceller(kFs);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, canc.weightNorm());
+}
+
+void test_weight_norm_grows_when_learning_and_resets() {
+    float path[16] = {};
+    path[5]        = 0.6f;
+    path[6]        = -0.2f;
+
+    canc = anc::FxlmsCanceller(kFs);
+    canc.setSecondaryPath(path, 16);
+    canc.setToneFrequency(0, 60.0f);
+    canc.setNormalizedStepSize(0.1f);
+
+    SimulatedRoom room(kFs, path, 16);
+    room.addHum(60.0f, 0.5f, 0.7f);
+    for (int i = 0; i < 16000; ++i) {
+        canc.update(room.step(canc.nextOutput()));
+    }
+    TEST_ASSERT_TRUE(canc.weightNorm() > 0.0f);
+
+    canc.reset();
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, canc.weightNorm());
+}
+
 void test_num_tones_is_clamped() {
     canc = anc::FxlmsCanceller(kFs);
     canc.setNumTones(0);
@@ -288,5 +314,7 @@ int main() {
     RUN_TEST(test_loud_sample_resets_convergence);
     RUN_TEST(test_reset_forgets_learning);
     RUN_TEST(test_default_settings_cancel_through_firmware_sized_delay);
+    RUN_TEST(test_new_canceller_has_zero_weight_norm);
+    RUN_TEST(test_weight_norm_grows_when_learning_and_resets);
     return UNITY_END();
 }
