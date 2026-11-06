@@ -10,9 +10,9 @@ ANC reduces an unwanted sound by generating a controlled speaker signal that mak
 
 **BCLK** (bit clock) times the individual bits on an I2S audio link. **WS** (word select, also called LRCLK) marks the boundary between audio words or channels; together they let an I2S microphone or amplifier interpret the serial data stream. The project uses an I2S microphone and amplifier as described in the [hardware design](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#3-hardware-per-node).
 
-## Biquad filter (bandpass and notch)
+## Biquad filter (bandpass, notch and high-pass)
 
-A biquad is a small filter built from two past inputs and two past outputs, cheap enough to run on every sample. Shaped as a bandpass it keeps only a narrow band around one frequency, such as the hum; shaped as a notch it removes that band and leaves the rest; see [`biquad.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/biquad.hpp).
+A biquad is a small filter built from two past inputs and two past outputs, cheap enough to run on every sample. Shaped as a bandpass it keeps only a narrow band around one frequency, such as the hum; shaped as a notch it removes that band and leaves the rest; shaped as a high-pass (`Biquad::highpass()`) it removes everything below a cutoff, such as rumble and DC; see [`biquad.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/biquad.hpp).
 
 ## Burst error
 
@@ -69,6 +69,10 @@ Direct memory access lets a peripheral move data to or from memory without the C
 ## FxLMS
 
 Filtered-x Least Mean Squares is the adaptive algorithm used to tune the cancellation signal. It filters the reference through an estimate of the speaker-to-microphone path before updating the weights, which accounts for the physical path between the filter output and the measured error; see [§6.1](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#61-fxlms-filtered-x-least-mean-squares).
+
+## Gain ramp
+
+A gain ramp changes the output volume a little on every sample instead of all at once, because a sudden jump in volume makes an audible click. This project fades over 400 samples (50 ms at 8 kHz); see [`gain_ramp.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/dsp_core/include/anc/gain_ramp.hpp).
 
 ## Goertzel algorithm
 
