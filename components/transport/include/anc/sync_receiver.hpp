@@ -18,7 +18,9 @@ public:
     // Returns false for a stale or repeated message. Otherwise records it,
     // counts any skipped sequence numbers, and returns true.
     bool accept(const SyncMessage& m) {
-        if (accepted_ > 0) {
+        // A sender counts from 1 again after it reboots, so sequence 1 starts
+        // a new run instead of being dropped as stale forever.
+        if (accepted_ > 0 && m.sequenceNumber != 1) {
             if (m.sequenceNumber <= lastSequence_)
                 return false;
             missed_ += m.sequenceNumber - lastSequence_ - 1;
