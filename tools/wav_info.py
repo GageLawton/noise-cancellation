@@ -27,7 +27,8 @@ def dbfs_levels(samples):
 def summarize(path):
     """Return recording metadata and peak/RMS dBFS across all channels.
 
-    ``channels_dbfs`` also lists the levels of each channel on its own.
+    ``channels_dbfs`` also lists the levels of each channel on its own, and
+    ``clipped_samples`` counts samples stuck at 32767 or -32768.
     Levels use 32768 as the 16-bit full-scale amplitude. Silence, including
     an empty recording, has -infinity dBFS. Unsupported sample widths raise
     ValueError rather than guessing a conversion.
@@ -40,8 +41,11 @@ def summarize(path):
         frames = wav.getnframes()
         raw = wav.readframes(frames)
 
+    pcm = np.frombuffer(raw, dtype="<i2")
+    # A sample at either int16 limit means the mic or ADC clipped.
+    clipped = int(np.count_nonzero((pcm == 32767) | (pcm == -32768)))
     # Cast before squaring or taking abs, avoiding 16-bit integer overflow.
-    samples = np.frombuffer(raw, dtype="<i2").astype(np.float64) / 32768.0
+    samples = pcm.astype(np.float64) / 32768.0
     peak_dbfs, rms_dbfs = dbfs_levels(samples)
     # Samples are interleaved, so each column of (-1, channels) is a channel.
     per_channel = [dbfs_levels(column) for column in samples.reshape(-1, channels).T]
@@ -52,6 +56,7 @@ def summarize(path):
         "duration": frames / rate,
         "peak_dbfs": peak_dbfs,
         "rms_dbfs": rms_dbfs,
+        "clipped_samples": clipped,
         "channels_dbfs": [
             {"peak_dbfs": peak, "rms_dbfs": rms} for peak, rms in per_channel
         ],
@@ -92,6 +97,7 @@ def main():
     print(f"duration:    {info['duration']:.2f} s")
     print(f"peak:        {info['peak_dbfs']:.1f} dBFS")
     print(f"rms:         {info['rms_dbfs']:.1f} dBFS")
+    print(f"clipped:     {info['clipped_samples']} samples")
     if info["channels"] > 1:
         for number, levels in enumerate(info["channels_dbfs"], start=1):
             print(

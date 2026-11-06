@@ -55,6 +55,19 @@ public:
 
     std::size_t nodeCount() const override { return count_; }
 
+    // How many nodes last reported more than timeoutMs before nowMs.
+    // The age is nowMs - timestampMs in unsigned arithmetic, so it stays
+    // right when the millisecond counter wraps around past 0xFFFFFFFF.
+    std::size_t staleCount(uint32_t nowMs, uint32_t timeoutMs) const {
+        std::size_t stale = 0;
+        for (std::size_t i = 0; i < count_; ++i) {
+            const uint32_t ageMs = nowMs - nodes_[i].timestampMs;
+            if (ageMs > timeoutMs)
+                ++stale;
+        }
+        return stale;
+    }
+
 private:
     NodeStatus* find(uint64_t nodeId) {
         for (std::size_t i = 0; i < count_; ++i) {

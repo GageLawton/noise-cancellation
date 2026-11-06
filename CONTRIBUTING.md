@@ -61,7 +61,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Or run `./scripts/test.sh` (macOS and Linux) or `.\scripts\test.ps1` (Windows PowerShell), which does all three steps.
+Or run `./scripts/test.sh` (macOS and Linux) or `.\scripts\test.ps1` (Windows PowerShell), which does all three steps. Arguments are passed to `ctest`, so `./scripts/test.sh -R goertzel` or `.\scripts\test.ps1 -R goertzel` runs only the tests whose name contains `goertzel`.
 
 ## Formatting
 
