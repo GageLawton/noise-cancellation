@@ -15,10 +15,13 @@ LOG = (
     "I (1000) telemetry: state=CALIBRATE_SECONDARY_PATH lock=0 clip=0 blocks=100 "
     "under=0 drop=0 mic=-50.0dBFS\n"
     "I (1500) runtime: CALIBRATE_SECONDARY_PATH -> RUN\n"
-    "I (2000) telemetry: state=RUN lock=0 clip=0 blocks=350 under=0 drop=0 mic=-40.0dBFS\n"
-    "I (3000) telemetry: state=RUN lock=1 clip=2 blocks=600 under=3 drop=0 mic=-30.0dBFS\n"
+    "I (2000) telemetry: state=RUN lock=0 clip=0 blocks=350 under=0 drop=0 mic=-40.0dBFS "
+    "resid=-30.0dBFS hum=-20.0dBFS\n"
+    "I (3000) telemetry: state=RUN lock=1 clip=2 blocks=600 under=3 drop=0 mic=-30.0dBFS "
+    "resid=-40.0dBFS hum=-22.0dBFS\n"
     "some noise the monitor printed\n"
-    "I (4000) telemetry: state=RUN lock=1 clip=2 blocks=850 under=3 drop=1 mic=-45.0dBFS\n"
+    "I (4000) telemetry: state=RUN lock=1 clip=2 blocks=850 under=3 drop=1 mic=-45.0dBFS "
+    "resid=-50.0dBFS hum=-24.0dBFS\n"
     "I (5000) telemetry: state=FAULT lock=1 clip=5 blocks=1100 under=3 drop=1 "
     "mic=-35.0dBFS\n"
 )
@@ -118,3 +121,26 @@ def test_counts_sync_ticks_heard_and_sent():
     lines = format_summary(summarize(read_telemetry(log)))
     assert "sync_heard: 10 -> 11 (+1)" in lines
     assert "sync_sent: 10 -> 12 (+2)" in lines
+
+
+def test_resid_min_mean_max(summary):
+    low, mean, high = summary["resid"]
+    assert (low, high) == (-50.0, -30.0)
+    assert mean == pytest.approx(-40.0)
+
+
+def test_hum_min_mean_max(summary):
+    low, mean, high = summary["hum"]
+    assert (low, high) == (-24.0, -20.0)
+    assert mean == pytest.approx(-22.0)
+
+
+def test_levels_print_after_mic(summary):
+    lines = format_summary(summary)
+    assert "resid dBFS: min -50.0, mean -40.0, max -30.0" in lines
+    assert "hum dBFS: min -24.0, mean -22.0, max -20.0" in lines
+
+
+def test_log_without_resid_gives_none():
+    records = read_telemetry(["I (1) telemetry: state=RUN mic=-40.0dBFS"])
+    assert summarize(records)["resid"] is None

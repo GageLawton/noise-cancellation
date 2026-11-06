@@ -35,11 +35,19 @@ def read_telemetry(lines):
     return [fields for fields in map(parse_line, lines) if fields is not None]
 
 
+def level_range(records, key):
+    """Return (min, mean, max) of the numeric values of key, or None if none."""
+    values = [r[key] for r in records if isinstance(r.get(key), (int, float))]
+    if not values:
+        return None
+    return (min(values), sum(values) / len(values), max(values))
+
+
 def summarize(records):
     """Return a dict of summary numbers for a non-empty list of records.
 
     counters maps each of COUNTERS that appears to (first, last, growth).
-    mic is (min, mean, max) or None, lock_fraction is a number from 0 to 1
+    mic, resid and hum are each (min, mean, max) or None, lock_fraction is a number from 0 to 1
     or None, and states lists each state in order of first appearance.
     """
     summary = {"lines": len(records), "seconds": len(records)}  # one line per second
@@ -51,8 +59,9 @@ def summarize(records):
             counters[key] = (values[0], values[-1], values[-1] - values[0])
     summary["counters"] = counters
 
-    mic = [r["mic"] for r in records if isinstance(r.get("mic"), (int, float))]
-    summary["mic"] = (min(mic), sum(mic) / len(mic), max(mic)) if mic else None
+    summary["mic"] = level_range(records, "mic")
+    summary["resid"] = level_range(records, "resid")
+    summary["hum"] = level_range(records, "hum")
 
     locks = [r["lock"] for r in records if "lock" in r]
     summary["lock_fraction"] = (
@@ -78,6 +87,12 @@ def format_summary(summary):
     if summary["mic"] is not None:
         low, mean, high = summary["mic"]
         lines.append(f"mic dBFS: min {low:.1f}, mean {mean:.1f}, max {high:.1f}")
+    for key in ("resid", "hum"):
+        if summary[key] is not None:
+            low, mean, high = summary[key]
+            lines.append(
+                f"{key} dBFS: min {low:.1f}, mean {mean:.1f}, max {high:.1f}"
+            )
     if summary["lock_fraction"] is not None:
         lines.append(f"locked: {100 * summary['lock_fraction']:.0f}% of lines")
     lines.append("states: " + " -> ".join(str(s) for s in summary["states"]))
