@@ -104,6 +104,22 @@ jobs:
           target: esp32s3
           path: '.'
 
+  example-build:
+    name: Example build (i2s_bringup)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # examples/i2s_bringup is its own ESP-IDF project, so the firmware
+      # build above never compiles it. Building it here catches an
+      # ESP-IDF or driver change that breaks the bring-up example.
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32s3
+          path: 'examples/i2s_bringup'
+
   format:
     name: Format check
     runs-on: ubuntu-latest
