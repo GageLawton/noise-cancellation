@@ -9,6 +9,7 @@
 #include "anc/alignment_engine.hpp"
 #include "anc/block_processor.hpp"
 #include "anc/calibration_scheduler.hpp"
+#include "anc/clock_offset.hpp"
 #include "anc/config_store.hpp"
 #include "anc/coordinator.hpp"
 #include "anc/divergence_detector.hpp"
@@ -221,6 +222,10 @@ private:
     uint32_t syncSeq_ = 0;
     std::atomic<uint32_t> syncRxAccepted_{0}, syncRxMissed_{0};
     std::atomic<uint32_t> syncBadFrames_{0};  // frames readFrame rejected
+    // How far the other node's clock is from ours. Only SyncTask touches
+    // clockOffset_; clockOffsetUs_ copies its estimate for telemetry.
+    ClockOffset clockOffset_;
+    std::atomic<float> clockOffsetUs_{0.0f};
 
     // Where each tone starts after a calibration: the last locked
     // frequency if there is one, else the config's hint. Set at the start
