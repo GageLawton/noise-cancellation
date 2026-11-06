@@ -22,7 +22,8 @@ void test_remote_clock_jumping_back_starts_over() {
     }
     TEST_ASSERT_TRUE(clock.ready());
     // Floats can't hold 9e8 to 1 us, so check the difference instead.
-    TEST_ASSERT_FLOAT_WITHIN(1.0f, 0.0f, static_cast<float>(clock.offsetUs() + 900000000.0));
+    TEST_ASSERT_FLOAT_WITHIN(1.0f, 0.0f,
+                             static_cast<float>(clock.offsetUs() + 900000000.0));
 }
 
 }  // namespace
