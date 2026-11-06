@@ -58,6 +58,17 @@ public:
     // How many nodes last reported more than timeoutMs before nowMs.
     // The age is nowMs - timestampMs in unsigned arithmetic, so it stays
     // right when the millisecond counter wraps around past 0xFFFFFFFF.
+    // Frees a node's slot, for a board that has gone away. Moves the last
+    // node into the gap, so the order of the others can change.
+    bool forget(uint64_t nodeId) {
+        NodeStatus* slot = find(nodeId);
+        if (slot == nullptr)
+            return false;
+        *slot = nodes_[count_ - 1];
+        --count_;
+        return true;
+    }
+
     std::size_t staleCount(uint32_t nowMs, uint32_t timeoutMs) const {
         std::size_t stale = 0;
         for (std::size_t i = 0; i < count_; ++i) {
