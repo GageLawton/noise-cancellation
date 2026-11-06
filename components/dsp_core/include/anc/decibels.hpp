@@ -15,4 +15,10 @@ inline float dbToAmplitude(float db) {
     return std::pow(10.0f, db / 20.0f);
 }
 
+// Converts a power (a mean square, such as RunningPower's value) to
+// decibels: 10*log10(p), with the same -120 dB floor as amplitudeToDb.
+inline float powerToDb(float p) {
+    return p <= 1e-12f ? -120.0f : 10.0f * std::log10(p);
+}
+
 }  // namespace anc
