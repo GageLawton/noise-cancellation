@@ -15,6 +15,14 @@ public:
         return Biquad(s.alpha, 0.0, -s.alpha, s);
     }
 
+    // Unity gain well above cutoffHz, falling 12 dB per octave below it.
+    // Takes out rumble (footsteps, doors) below the hum.
+    static Biquad highpass(float cutoffHz, float q, float sampleRateHz) {
+        const Shape s  = shape(cutoffHz, q, sampleRateHz);
+        const double b = (1.0 + s.cosW0) / 2.0;
+        return Biquad(b, -2.0 * b, b, s);
+    }
+
     // Zero gain at centerHz, unity gain far from it.
     static Biquad notch(float centerHz, float q, float sampleRateHz) {
         const Shape s = shape(centerHz, q, sampleRateHz);
