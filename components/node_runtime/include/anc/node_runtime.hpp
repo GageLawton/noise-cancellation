@@ -153,10 +153,9 @@ private:
     std::atomic<uint32_t> clipEvents_{0};  // samples the limiter clipped
 
     // M4 calibration: plays white noise and records what the mic hears.
-    // 0.1 is quiet enough to be comfortable, and loud enough that 300 ms
-    // of probe gives a clean estimate.
-    static constexpr float kProbeAmplitude = 0.1f;
-    ProbeProcessor probe_{kProbeAmplitude};
+    // doCalibrate() sets its level from calibration.probe_amplitude
+    // (default 0.1) before each run.
+    ProbeProcessor probe_;
     // Set by FilterTask once the probe recording is full. The release /
     // acquire pair makes the finished recording visible to the main task.
     std::atomic<bool> probeDone_{false};
