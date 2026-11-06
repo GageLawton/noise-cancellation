@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from bench_summary import read_telemetry, summarize
+from bench_summary import format_summary, read_telemetry, summarize
 
 TOOL = Path(__file__).with_name("bench_summary.py")
 
@@ -96,3 +96,15 @@ def test_tool_exits_without_telemetry(tmp_path):
     )
     assert result.returncode != 0
     assert "No telemetry" in result.stderr
+
+
+def test_counts_faults_and_sync_frames():
+    log = [
+        "I (1000) telemetry: state=RUN faults=0 syncrx=10 missed=0 bad=0",
+        "I (2000) telemetry: state=RUN faults=1 syncrx=12 missed=1 bad=0",
+    ]
+    lines = format_summary(summarize(read_telemetry(log)))
+    assert "faults: 0 -> 1 (+1)" in lines
+    assert "syncrx: 10 -> 12 (+2)" in lines
+    assert "missed: 0 -> 1 (+1)" in lines
+    assert "bad: 0 -> 0 (+0)" in lines
