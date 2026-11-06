@@ -141,6 +141,23 @@ void test_rejects_min_lock_amplitude_out_of_range() {
     TEST_ASSERT_TRUE(c.validate());
 }
 
+void test_probe_amplitude_default_is_valid() {
+    NodeConfig c = NodeConfig::defaults();
+    TEST_ASSERT_EQUAL_FLOAT(0.1f, c.probeAmplitude);
+    TEST_ASSERT_TRUE(c.validate());
+}
+
+void test_rejects_probe_amplitude_out_of_range() {
+    NodeConfig c = NodeConfig::defaults();
+
+    c.probeAmplitude = 0.0f;
+    TEST_ASSERT_FALSE(c.validate());
+    c.probeAmplitude = 0.6f;
+    TEST_ASSERT_FALSE(c.validate());
+    c.probeAmplitude = 0.5f;
+    TEST_ASSERT_TRUE(c.validate());
+}
+
 void test_rejects_dma_block_size_out_of_range() {
     // validate range for dmaBlockSamples is 8 to 256 inclusive.
     // Check 7 and 257 are rejected. And 8 and 256 are accepted
@@ -265,6 +282,8 @@ int main() {
     RUN_TEST(test_rejects_non_positive_drift_rate);
     RUN_TEST(test_min_lock_amplitude_default_is_valid);
     RUN_TEST(test_rejects_min_lock_amplitude_out_of_range);
+    RUN_TEST(test_probe_amplitude_default_is_valid);
+    RUN_TEST(test_rejects_probe_amplitude_out_of_range);
     RUN_TEST(test_rejects_dma_block_size_out_of_range);
     RUN_TEST(test_rejects_empty_node_name);
     RUN_TEST(test_rejects_secondary_path_taps_out_of_range);
