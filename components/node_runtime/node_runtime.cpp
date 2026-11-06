@@ -14,6 +14,7 @@
 #include "anc/output_limiter.hpp"
 #include "anc/pins.hpp"
 #include "anc/rms.hpp"
+#include "anc/sync_frame.hpp"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -589,6 +590,21 @@ void NodeRuntime::syncLoop() {
         if (syncTick_.wait(kSyncWaitMs)) {
             syncHeard_.fetch_add(1, std::memory_order_relaxed);
         }
+
+        // The message that goes with the tick. On one board it loops back
+        // in memory, so missed and bad should stay 0.
+        const SyncMessage sent{nodeId_, static_cast<uint64_t>(esp_timer_get_time()),
+                               ++syncSeq_};
+        uint8_t frame[kSyncFrameBytes];
+        writeFrame(sent, frame);
+        SyncMessage received{};
+        if (readFrame(frame, sizeof(frame), received)) {
+            (void)syncRx_.accept(received);
+        } else {
+            syncBadFrames_.fetch_add(1, std::memory_order_relaxed);
+        }
+        syncRxAccepted_.store(syncRx_.accepted(), std::memory_order_relaxed);
+        syncRxMissed_.store(syncRx_.missed(), std::memory_order_relaxed);
         vTaskDelay(pdMS_TO_TICKS(kSyncPeriodMs));
     }
 }
@@ -749,7 +765,8 @@ void NodeRuntime::telemetryLoop() {
             "up=%u state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
             "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
-            "hum=%.1fdBFS wnorm=%.3f faults=%u sync=%u/%u",
+            "hum=%.1fdBFS wnorm=%.3f faults=%u sync=%u/%u "
+            "syncrx=%u missed=%u bad=%u",
             static_cast<unsigned>(esp_timer_get_time() / 1000000), toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -769,7 +786,10 @@ void NodeRuntime::telemetryLoop() {
             weightNorm_.load(std::memory_order_relaxed),
             static_cast<unsigned>(faults_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(syncHeard_.load(std::memory_order_relaxed)),
-            static_cast<unsigned>(syncSent_.load(std::memory_order_relaxed)));
+            static_cast<unsigned>(syncSent_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(syncRxAccepted_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(syncRxMissed_.load(std::memory_order_relaxed)),
+            static_cast<unsigned>(syncBadFrames_.load(std::memory_order_relaxed)));
         // The line above shows tone 0 only. With harmonics, list them all
         // as frequency/lock.
         if (config_.numTones > 1) {
