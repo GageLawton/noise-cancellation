@@ -20,6 +20,8 @@ public:
     bool accept(const SyncMessage& m) {
         // A sender counts from 1 again after it reboots, so sequence 1 starts
         // a new run instead of being dropped as stale forever.
+        if (accepted_ > 0 && m.sequenceNumber == 1)
+            ++restarts_;
         if (accepted_ > 0 && m.sequenceNumber != 1) {
             if (m.sequenceNumber <= lastSequence_)
                 return false;
@@ -35,9 +37,13 @@ public:
 
     uint32_t accepted() const { return accepted_; }
 
+    // How many times the sender started again from 1 after a reboot.
+    uint32_t restarts() const { return restarts_; }
+
 private:
     uint32_t lastSequence_ = 0;
     uint32_t missed_       = 0;
+    uint32_t restarts_     = 0;
     uint32_t accepted_     = 0;
 };
 
