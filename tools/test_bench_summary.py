@@ -1,5 +1,6 @@
 """bench_summary.py summarizes a telemetry log."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +68,21 @@ def test_tool_prints_summary(tmp_path):
     assert "telemetry lines: 5" in result.stdout
     assert "blocks: 100 -> 1100 (+1000)" in result.stdout
     assert "locked: 60% of lines" in result.stdout
+
+
+def test_tool_prints_json(tmp_path):
+    log = tmp_path / "run.log"
+    log.write_text(LOG, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(TOOL), str(log), "--json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    summary = json.loads(result.stdout)
+    assert summary["lines"] == 5
+    assert summary["lock_fraction"] == pytest.approx(0.6)
+    assert summary["counters"]["blocks"] == [100, 1100, 1000]
 
 
 def test_tool_exits_without_telemetry(tmp_path):
