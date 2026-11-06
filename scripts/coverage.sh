@@ -7,6 +7,19 @@
 
 set -euo pipefail
 
+usage() {
+    echo "Usage: ./scripts/coverage.sh [--open]"
+    echo "  --open   open the HTML report when done"
+}
+
+OPEN=0
+case "${1:-}" in
+    "") ;;
+    --open) OPEN=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+esac
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD="$ROOT/test/build-coverage"
 
@@ -35,7 +48,7 @@ gcovr --root "$ROOT" \
 echo
 echo "HTML report: $BUILD/coverage.html"
 
-if [[ "${1:-}" == "--open" ]]; then
+if [[ "$OPEN" == 1 ]]; then
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$BUILD/coverage.html"
     elif command -v open >/dev/null 2>&1; then
