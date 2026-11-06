@@ -278,6 +278,15 @@ python3 tools/make_tone.py tone.wav --freq 120
 python3 tools/analyze.py tone.wav          # target frequency: 120.00 Hz
 ```
 
+Other tools in `tools/` (run any of them with `--help` for options):
+
+- [`wav_info.py`](tools/wav_info.py): summarizes the format and levels of a 16-bit PCM WAV recording.
+- [`ir_from_log.py`](tools/ir_from_log.py): pulls the measured impulse response out of a serial log and reports its peak (the acoustic delay).
+- [`plot_ir.py`](tools/plot_ir.py): draws an impulse response from `ir_from_log.py --csv` as a picture, optionally next to a second one (needs matplotlib).
+- [`spectrum.py`](tools/spectrum.py): plots what frequencies a recording holds, to spot hums and their harmonics (needs matplotlib).
+- [`telemetry_to_csv.py`](tools/telemetry_to_csv.py): turns the firmware's telemetry lines into a CSV table.
+- [`bench_summary.py`](tools/bench_summary.py): summarizes a long telemetry log from a bench check: drops, mic level and how often the tracker was locked.
+
 The tools have their own tests, run by the **Python tools** CI job:
 
 ```bash
@@ -342,6 +351,8 @@ components/
   coordinator/   multi-node stub
   transport/     wired GPIO sync shim
 main/            app_main.cpp
+examples/
+  i2s_bringup/   standalone bring-up app: mic level meter and test tones
 test/            host build + Unity tests
   fakes/         fakes and the simulated room for host tests
 docs/            design, config, hardware, bench results and glossary pages
