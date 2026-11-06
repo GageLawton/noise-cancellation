@@ -1,5 +1,10 @@
 """Unit tests for fxlms_sim.py."""
 
+import json
+import subprocess
+import sys
+from pathlib import Path
+
 from fxlms_sim import diverged, reduction_db, simulate
 
 
@@ -14,3 +19,19 @@ def test_large_step_diverges_through_the_loop_delay():
     # The firmware's own test (test_fxlms_canceller.cpp) shows 0.1, the old
     # default, going unstable through a 180-sample path.
     assert diverged(simulate(0.1))
+
+
+def test_tool_prints_json():
+    tool = Path(__file__).with_name("fxlms_sim.py")
+    result = subprocess.run(
+        [sys.executable, str(tool), "--mu", "0.005", "1.0", "--seconds", "1", "--json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    runs = json.loads(result.stdout)
+    assert len(runs) == 2
+    assert runs[0]["diverged"] is False
+    assert runs[0]["reduction_db"] > 0
+    assert runs[1]["diverged"] is True
+    assert runs[1]["reduction_db"] is None

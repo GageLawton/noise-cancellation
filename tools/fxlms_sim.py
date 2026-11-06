@@ -16,6 +16,7 @@ Usage:
 """
 
 import argparse
+import json
 
 import numpy as np
 
@@ -83,6 +84,16 @@ def reduction_db(mic, rate=8000):
     return 20.0 * np.log10(rms_first / max(rms_last, 1e-12))
 
 
+def run(mu, args):
+    """One simulated run as a dict: mu, diverged and reduction_db (None if diverged)."""
+    mic = simulate(mu, delay_samples=args.delay, seconds=args.seconds,
+                   rate=args.rate, hum_hz=args.hum)
+    if diverged(mic):
+        return {"mu": mu, "diverged": True, "reduction_db": None}
+    return {"mu": mu, "diverged": False,
+            "reduction_db": float(reduction_db(mic, args.rate))}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -96,6 +107,8 @@ def main():
                    help="sample rate in Hz (default: 8000)")
     p.add_argument("--hum", type=float, default=60.0,
                    help="hum frequency in Hz (default: 60)")
+    p.add_argument("--json", action="store_true",
+                   help="print the results as one JSON list")
     args = p.parse_args()
 
     if args.delay < 0:
@@ -105,13 +118,15 @@ def main():
     if args.seconds < 1.0:
         p.error("--seconds must be at least 1 (the last second is measured)")
 
-    for mu in args.mu:
-        mic = simulate(mu, delay_samples=args.delay, seconds=args.seconds,
-                       rate=args.rate, hum_hz=args.hum)
-        if diverged(mic):
-            print(f"mu {mu:g}: diverged")
+    results = [run(mu, args) for mu in args.mu]
+    if args.json:
+        print(json.dumps(results))
+        return
+    for r in results:
+        if r["diverged"]:
+            print(f"mu {r['mu']:g}: diverged")
         else:
-            print(f"mu {mu:g}: {reduction_db(mic, args.rate):.1f} dB quieter")
+            print(f"mu {r['mu']:g}: {r['reduction_db']:.1f} dB quieter")
 
 
 if __name__ == "__main__":
