@@ -16,6 +16,7 @@ NodeConfig NodeConfig::defaults() {
     c.dmaBlockSamples    = 32;  // 4ms at 8kHz
 
     c.probeDurationMs      = 300;
+    c.probeAmplitude       = 0.1f;
     c.correlationThreshold = 0.3f;
     c.correlationWindowMs  = 1000;
     c.backstopIntervalMs   = 600000;  // 10 min
@@ -50,6 +51,9 @@ bool NodeConfig::validate() const {
         return false;
 
     if (probeDurationMs < 50 || probeDurationMs > 5000)
+        return false;
+    // Above 0.5 the white noise is unpleasantly loud and risks clipping.
+    if (probeAmplitude <= 0.0f || probeAmplitude > 0.5f)
         return false;
     if (correlationThreshold <= 0.0f || correlationThreshold >= 1.0f)
         return false;

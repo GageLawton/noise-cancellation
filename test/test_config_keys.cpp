@@ -52,6 +52,14 @@ void test_sets_min_lock_amplitude() {
     TEST_ASSERT_EQUAL_FLOAT(0.05f, cfg.minLockAmplitude);
 }
 
+void test_sets_probe_amplitude() {
+    anc::NodeConfig cfg = anc::NodeConfig::defaults();
+    TEST_ASSERT_TRUE(anc::applySetting(cfg, "calibration.probe_amplitude", "0.2"));
+    TEST_ASSERT_EQUAL_FLOAT(0.2f, cfg.probeAmplitude);
+    TEST_ASSERT_FALSE(anc::applySetting(cfg, "calibration.probe_amplitude", "0.8"));
+    TEST_ASSERT_EQUAL_FLOAT(0.2f, cfg.probeAmplitude);
+}
+
 void test_sets_integer_fields() {
     anc::NodeConfig cfg = anc::NodeConfig::defaults();
     TEST_ASSERT_TRUE(anc::applySetting(cfg, "dsp.dma_block_samples", "64"));
@@ -121,6 +129,7 @@ int main() {
     RUN_TEST(test_unparsable_values_are_rejected);
     RUN_TEST(test_sets_output_ceiling);
     RUN_TEST(test_sets_min_lock_amplitude);
+    RUN_TEST(test_sets_probe_amplitude);
     RUN_TEST(test_sets_integer_fields);
     RUN_TEST(test_formats_default_step_size);
     RUN_TEST(test_formats_default_block_size);

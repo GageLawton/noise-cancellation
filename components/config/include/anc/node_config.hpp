@@ -33,6 +33,7 @@ struct NodeConfig {
 
     // --- calibration ---
     uint32_t probeDurationMs;
+    float probeAmplitude;        // calibration noise level, (0, 0.5]
     float correlationThreshold;  // fires a calibration event
     uint32_t correlationWindowMs;
     uint32_t backstopIntervalMs;  // max time between calibrations

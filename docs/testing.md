@@ -71,6 +71,13 @@ the ticks this node sends with `signals()`, and `deliverTick()` pretends a
 tick arrived from another node. `wait()` never really waits, so tests stay
 fast. See [`test_fake_sync_tick.cpp`](../test/test_fake_sync_tick.cpp).
 
+**[`loopback_link.hpp`](../test/fakes/loopback_link.hpp)** stands in for
+the link between two nodes. Frames you `send()` come back out of
+`receive()` in the same order, so one test can play both sender and
+receiver. It holds up to eight frames, and `corruptNext()` flips one bit of
+the next frame so a test can check the CRC catches it. See
+[`test_loopback_link.cpp`](../test/test_loopback_link.cpp).
+
 **[`simulated_room.hpp`](../test/fakes/simulated_room.hpp)** stands in for
 the room itself: up to four steady hums plus a fixed speaker-to-mic path
 (an FIR filter). Each `step(speakerSample)` plays one sample and returns
