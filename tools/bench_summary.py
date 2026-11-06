@@ -16,7 +16,7 @@ import sys
 
 from telemetry_to_csv import parse_line
 
-COUNTERS = ("blocks", "under", "drop", "clip")
+COUNTERS = ("blocks", "under", "drop", "clip", "faults", "syncrx", "missed", "bad")
 
 
 def read_telemetry(lines):
