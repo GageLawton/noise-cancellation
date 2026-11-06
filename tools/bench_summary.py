@@ -3,7 +3,10 @@
 
 Bench checks like #92 run for 10 minutes and print 600 telemetry lines.
 This tool answers the usual questions directly: did anything drop, how
-loud was the mic, and how often was the frequency tracker locked?
+loud was the mic, and how often was the frequency tracker locked? For the
+lock-threshold check (#264) it also splits the hum level by lock=1 and
+lock=0, shows the tracked frequency while locked, and turns the hum level
+into the amplitude that tracking.min_lock_amplitude is compared against.
 
 Usage:
     python tools/bench_summary.py run.log
@@ -43,11 +46,18 @@ def level_range(records, key):
     return (min(values), sum(values) / len(values), max(values))
 
 
+def dbfs_to_amplitude(dbfs):
+    """Return the linear amplitude (full scale = 1) of a level in dBFS."""
+    return 10 ** (dbfs / 20)
+
+
 def summarize(records):
     """Return a dict of summary numbers for a non-empty list of records.
 
     counters maps each of COUNTERS that appears to (first, last, growth).
-    mic, resid, hum and offset are each (min, mean, max) or None, lock_fraction is a number from 0 to 1
+    mic, resid, hum and offset are each (min, mean, max) or None, as are
+    freq_locked, hum_locked and hum_unlocked (the same over only the lines
+    with lock=1 or lock=0). lock_fraction is a number from 0 to 1
     or None, and states lists each state in order of first appearance.
     """
     summary = {"lines": len(records), "seconds": len(records)}  # one line per second
@@ -63,6 +73,12 @@ def summarize(records):
     summary["resid"] = level_range(records, "resid")
     summary["hum"] = level_range(records, "hum")
     summary["offset"] = level_range(records, "offset")
+
+    locked = [r for r in records if r.get("lock") == 1]
+    unlocked = [r for r in records if r.get("lock") == 0]
+    summary["freq_locked"] = level_range(locked, "freq")
+    summary["hum_locked"] = level_range(locked, "hum")
+    summary["hum_unlocked"] = level_range(unlocked, "hum")
 
     locks = [r["lock"] for r in records if "lock" in r]
     summary["lock_fraction"] = (
@@ -99,6 +115,21 @@ def format_summary(summary):
         lines.append(f"clock offset us: min {low:.0f}, mean {mean:.0f}, max {high:.0f}")
     if summary["lock_fraction"] is not None:
         lines.append(f"locked: {100 * summary['lock_fraction']:.0f}% of lines")
+    if summary["freq_locked"] is not None:
+        low, mean, high = summary["freq_locked"]
+        lines.append(f"freq Hz while locked: min {low:.2f}, mean {mean:.2f}, max {high:.2f}")
+    for key, label in (("hum_locked", "locked"), ("hum_unlocked", "unlocked")):
+        if summary[key] is not None:
+            low, mean, high = summary[key]
+            lines.append(
+                f"hum dBFS while {label}: min {low:.1f}, mean {mean:.1f}, max {high:.1f}"
+            )
+    if summary["hum"] is not None:
+        mean = summary["hum"][1]
+        lines.append(
+            f"hum amplitude: mean {dbfs_to_amplitude(mean):.3f} "
+            "(tracking.min_lock_amplitude must be below this to lock)"
+        )
     lines.append("states: " + " -> ".join(str(s) for s in summary["states"]))
     return lines
 
