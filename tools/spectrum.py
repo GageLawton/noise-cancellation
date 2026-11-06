@@ -49,6 +49,12 @@ def main():
         "--out", default="spectrum.png", help="PNG to write (default spectrum.png)"
     )
     parser.add_argument(
+        "--min-hz",
+        type=float,
+        default=0.0,
+        help="lowest frequency to plot in Hz (default 0)",
+    )
+    parser.add_argument(
         "--max-hz",
         type=float,
         default=1000.0,
@@ -57,17 +63,21 @@ def main():
     parser.add_argument(
         "--csv",
         metavar="OUT",
-        help="also write freq_hz,level_db rows up to --max-hz to this CSV",
+        help="also write freq_hz,level_db rows from --min-hz to --max-hz to this CSV",
     )
     args = parser.parse_args()
     if args.max_hz <= 0:
         sys.exit("--max-hz must be greater than 0")
+    if args.min_hz < 0:
+        sys.exit("--min-hz must be 0 or more")
+    if args.min_hz >= args.max_hz:
+        sys.exit("--min-hz must be below --max-hz")
 
     signal, rate = read_wav(args.path)
     if len(signal) == 0:
         sys.exit("The recording has no samples")
     freqs, levels = spectrum_db(signal, rate)
-    shown = freqs <= args.max_hz
+    shown = (freqs >= args.min_hz) & (freqs <= args.max_hz)
 
     # The CSV comes first so it works without matplotlib.
     if args.csv:
@@ -91,7 +101,7 @@ def main():
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(freqs[shown], levels[shown])
     for hum_hz in HUM_LINES_HZ:
-        if hum_hz <= args.max_hz:
+        if args.min_hz <= hum_hz <= args.max_hz:
             ax.axvline(hum_hz, linestyle="--", color="gray", alpha=0.4)
     ax.set_title(f"Spectrum of {os.path.basename(args.path)}")
     ax.set_xlabel("Frequency (Hz)")
