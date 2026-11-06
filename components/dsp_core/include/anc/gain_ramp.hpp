@@ -23,6 +23,13 @@ public:
 
     // Returns x scaled by the current gain, then steps the gain one sample
     // toward the target, stopping exactly on it.
+    // Sets the gain at once with no fade, for cutting the output on a fault.
+    void jumpTo(float gain) {
+        gain_      = gain;
+        target_    = gain;
+        remaining_ = 0;
+    }
+
     float process(float x) {
         const float y = x * gain_;
         if (remaining_ > 0) {
