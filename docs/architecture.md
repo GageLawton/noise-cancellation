@@ -82,6 +82,7 @@ tested on a laptop.
 
 | Header | What it does |
 |---|---|
+| [`biquad.hpp`](../components/dsp_core/include/anc/biquad.hpp) | Two-pole, two-zero filter with `bandpass()` (keeps just the hum) and `notch()` (removes it) factories. |
 | [`block_processor.hpp`](../components/dsp_core/include/anc/block_processor.hpp) | `IBlockProcessor`: turns one block of mic samples into one block of speaker samples. |
 | [`dc_blocker.hpp`](../components/dsp_core/include/anc/dc_blocker.hpp) | Removes a constant offset from the mic while keeping a 60 Hz hum. |
 | [`decibels.hpp`](../components/dsp_core/include/anc/decibels.hpp) | Converts between amplitude and decibels. |
@@ -155,8 +156,10 @@ Talking between nodes (M7, planned).
 | Header | What it does |
 |---|---|
 | [`crc8.hpp`](../components/transport/include/anc/crc8.hpp) | One-byte CRC-8 checksum, so a node can throw away a corrupted message. |
+| [`gpio_sync_tick.hpp`](../components/transport/include/anc/gpio_sync_tick.hpp) | `GpioSyncTick`: the real `ISyncTick` on the board. A short pulse on one GPIO sends a tick; a rising edge on another receives one (device only). |
 | [`sync_frame.hpp`](../components/transport/include/anc/sync_frame.hpp) | A `SyncMessage` on the wire: its 20 bytes plus a CRC-8, so a corrupted frame is thrown away. |
 | [`sync_message.hpp`](../components/transport/include/anc/sync_message.hpp) | The timing message nodes exchange, and its 20-byte wire format. |
+| [`sync_receiver.hpp`](../components/transport/include/anc/sync_receiver.hpp) | `SyncReceiver`: drops repeated or stale `SyncMessage`s and counts the ones lost in a gap. |
 | [`sync_tick.hpp`](../components/transport/include/anc/sync_tick.hpp) | `ISyncTick`: a shared tick that keeps boards in step. A fake ([`fake_sync_tick.hpp`](../test/fakes/fake_sync_tick.hpp)) stands in for host tests. |
 
 ### coordinator

@@ -711,11 +711,11 @@ void NodeRuntime::telemetryLoop() {
         coordinator_.report(s);
         ESP_LOGI(
             "telemetry",
-            "state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
+            "up=%u state=%s conv=%d resid=%.1fdBFS freq=%.2f lock=%d corr=%.2f low=%d "
             "recal=%d "
             "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
             "hum=%.1fdBFS wnorm=%.3f faults=%u",
-            toString(s.state),
+            static_cast<unsigned>(esp_timer_get_time() / 1000000), toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
             trackedFreqHz_[0].load(std::memory_order_relaxed),

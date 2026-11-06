@@ -11,6 +11,7 @@ drives it toward zero, so measuring with it is circular.
 Usage:
     ./analyze.py baseline.wav cancelled.wav --freq 60
     ./analyze.py baseline.wav cancelled.wav --json
+    ./analyze.py baseline.wav cancelled.wav --freq 60 --harmonics 2
 """
 
 import argparse
@@ -78,11 +79,15 @@ def main():
                    help="half-width of the measurement band in Hz (default: 2.0)")
     p.add_argument("--top", type=int, default=8,
                    help="how many peaks to list in survey mode (default: 8)")
+    p.add_argument("--harmonics", type=int, default=0,
+                   help="also measure depth at 2x..(N+1)x the target (default: 0)")
     p.add_argument("--json", action="store_true",
                    help="print the results as one JSON object")
     args = p.parse_args()
     if args.top <= 0:
         p.error("--top must be greater than 0")
+    if args.harmonics < 0:
+        p.error("--harmonics must be 0 or greater")
     if args.bandwidth <= 0:
         p.error("--bandwidth must be greater than 0")
 
@@ -122,18 +127,43 @@ def main():
         sys.exit("cancelled recording has no energy at target frequency")
 
     depth_db = 20.0 * np.log10(rms_off / rms_on)
+
+    # Mains hum has harmonics; the canceller can leave them untouched or
+    # even make them louder, so measure them the same way as the target.
+    harmonics = []
+    for k in range(2, args.harmonics + 2):
+        hz = k * freq
+        if hz > rate / 2.0:
+            print(f"harmonic {k} ({hz:.2f} Hz) is above Nyquist, skipped",
+                  file=sys.stderr)
+            continue
+        h_off = narrowband_rms(base, rate, hz, args.bandwidth)
+        h_on = narrowband_rms(canc, rate, hz, args.bandwidth)
+        if h_on <= 0:
+            print(f"harmonic {k} ({hz:.2f} Hz) has no energy in the cancelled "
+                  "recording, skipped", file=sys.stderr)
+            continue
+        harmonics.append((k, hz, float(20.0 * np.log10(h_off / h_on))))
+
     if args.json:
-        print(json.dumps({
+        result = {
             "freq_hz": freq,
             "bandwidth_hz": args.bandwidth,
             "baseline_rms": float(rms_off),
             "cancelled_rms": float(rms_on),
             "depth_db": float(depth_db),
-        }))
+        }
+        if args.harmonics > 0:
+            result["harmonics"] = [
+                {"hz": hz, "depth_db": d} for _, hz, d in harmonics
+            ]
+        print(json.dumps(result))
         return
     print(f"baseline RMS:  {rms_off:.6f}")
     print(f"cancelled RMS: {rms_on:.6f}")
     print(f"cancellation depth: {depth_db:.2f} dB")
+    for k, hz, d in harmonics:
+        print(f"  harmonic {k} ({hz:.2f} Hz): {d:.2f} dB")
 
 
 if __name__ == "__main__":

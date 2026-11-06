@@ -36,6 +36,9 @@ public:
 
     float gain() const { return gain_; }
 
+    // True when no ramp is in progress: the gain has reached the target.
+    bool done() const { return remaining_ == 0; }
+
 private:
     std::size_t rampSamples_;
     float gain_            = 0.0f;

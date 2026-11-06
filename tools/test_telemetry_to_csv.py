@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from telemetry_to_csv import parse_line, select_columns, select_rows
+from telemetry_to_csv import parse_line, select_columns, select_rows, skip_rows
 
 TOOL = Path(__file__).with_name("telemetry_to_csv.py")
 
@@ -82,3 +82,26 @@ def test_unknown_state_exits_with_message():
     with pytest.raises(SystemExit) as error:
         select_rows([{"line": 2, "state": "IDLE"}], "RUN")
     assert str(error.value) == "No telemetry lines with state=RUN"
+
+
+def test_skip_drops_the_first_rows(tmp_path):
+    rows = run_tool(tmp_path, "--skip", "1")
+    assert rows[0] == ["line", "state", "blocks", "resid"]
+    assert rows[1:] == [["3", "RUN", "", "-40.0"]]
+
+
+def test_skip_applies_before_state(tmp_path):
+    rows = run_tool(tmp_path, "--skip", "1", "--state", "RUN")
+    assert rows[1:] == [["3", "RUN", "", "-40.0"]]
+
+
+def test_skipping_every_row_exits_with_message():
+    with pytest.raises(SystemExit) as error:
+        skip_rows([{"line": 2}, {"line": 3}], 2)
+    assert str(error.value) == "No telemetry lines after skipping 2"
+
+
+def test_negative_skip_exits_with_message():
+    with pytest.raises(SystemExit) as error:
+        skip_rows([{"line": 2}], -1)
+    assert str(error.value) == "--skip must be 0 or more"

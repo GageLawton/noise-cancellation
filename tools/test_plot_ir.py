@@ -1,7 +1,7 @@
 """plot_ir.py reads the impulse response CSV that ir_from_log.py writes."""
 
 import pytest
-from plot_ir import delays_ms, load_ir_csv, title_for
+from plot_ir import delays_ms, load_ir_csv, taps_within, title_for
 
 
 def test_load_ir_csv_reads_rows_back(tmp_path):
@@ -31,3 +31,15 @@ def test_title_for_two_responses_reports_how_far_the_peak_moved():
     assert title_for(before, after, 8000) == (
         "Impulse responses: peak moved by 1.000 ms"
     )
+
+
+def test_taps_within_keeps_taps_up_to_max_ms():
+    pairs = [(i, 0.1 * i) for i in range(256)]
+    kept = taps_within(pairs, 8000, 1.0)
+    assert [index for index, _ in kept] == list(range(9))
+    assert kept == pairs[:9]
+
+
+def test_taps_within_a_large_max_ms_keeps_everything():
+    pairs = [(i, 0.1 * i) for i in range(256)]
+    assert taps_within(pairs, 8000, 1000.0) == pairs

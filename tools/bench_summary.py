@@ -7,9 +7,11 @@ loud was the mic, and how often was the frequency tracker locked?
 
 Usage:
     python tools/bench_summary.py run.log
+    python tools/bench_summary.py run.log --json
 """
 
 import argparse
+import json
 import sys
 
 from telemetry_to_csv import parse_line
@@ -74,6 +76,8 @@ def format_summary(summary):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", help="serial log containing telemetry: lines")
+    parser.add_argument("--json", action="store_true",
+                        help="print the summary as one JSON object")
     args = parser.parse_args()
 
     try:
@@ -85,7 +89,11 @@ def main():
     if not records:
         sys.exit("No telemetry: lines found")
 
-    print("\n".join(format_summary(summarize(records))))
+    summary = summarize(records)
+    if args.json:
+        print(json.dumps(summary))
+    else:
+        print("\n".join(format_summary(summary)))
 
 
 if __name__ == "__main__":
