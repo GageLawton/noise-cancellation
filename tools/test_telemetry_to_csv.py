@@ -105,3 +105,12 @@ def test_negative_skip_exits_with_message():
     with pytest.raises(SystemExit) as error:
         skip_rows([{"line": 2}], -1)
     assert str(error.value) == "--skip must be 0 or more"
+
+
+def test_sync_splits_into_heard_and_sent():
+    fields = parse_line("I (1) telemetry: up=3 sync=11/12")
+    assert fields == {"up": 3, "sync_heard": 11, "sync_sent": 12}
+
+
+def test_malformed_sync_is_kept_as_text():
+    assert parse_line("I (1) telemetry: sync=abc") == {"sync": "abc"}
