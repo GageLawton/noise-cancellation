@@ -91,7 +91,7 @@ tested on a laptop.
 | [`fir_filter.hpp`](../components/dsp_core/include/anc/fir_filter.hpp) | Fixed-size FIR filter, used to model the speaker-to-mic path. |
 | [`fxlms_canceller.hpp`](../components/dsp_core/include/anc/fxlms_canceller.hpp) | Cancels one hum tone with FxLMS, using a sine and a cosine weight. |
 | [`fxlms_processor.hpp`](../components/dsp_core/include/anc/fxlms_processor.hpp) | Runs an `FxlmsCanceller` as a block processor (M5). |
-| [`gain_ramp.hpp`](../components/dsp_core/include/anc/gain_ramp.hpp) | Fades the output gain in or out so switching doesn't click. |
+| [`gain_ramp.hpp`](../components/dsp_core/include/anc/gain_ramp.hpp) | Fades the output gain in or out so switching doesn't click; `jumpTo()` sets the gain at once, for cutting the output on a fault. |
 | [`goertzel.hpp`](../components/dsp_core/include/anc/goertzel.hpp) | Measures the amplitude of one frequency in a block of samples, such as the hum the tracker follows. |
 | [`output_limiter.hpp`](../components/dsp_core/include/anc/output_limiter.hpp) | Clamps every speaker sample to the configured ceiling and reports clipping. |
 | [`passthrough_processor.hpp`](../components/dsp_core/include/anc/passthrough_processor.hpp) | Copies the mic to the speaker at a fixed gain, as a quick bench check. |
@@ -169,4 +169,4 @@ Collects status from every node (M7, planned).
 
 | Header | What it does |
 |---|---|
-| [`coordinator.hpp`](../components/coordinator/include/anc/coordinator.hpp) | `ICoordinator` and `LocalCoordinator`: keeps the latest status of each node, up to 8 nodes. |
+| [`coordinator.hpp`](../components/coordinator/include/anc/coordinator.hpp) | `ICoordinator` and `LocalCoordinator`: keeps the latest status of each node, up to 8 nodes; `forget()` frees the slot of a node that has gone away. |
