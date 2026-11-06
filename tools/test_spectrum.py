@@ -51,3 +51,41 @@ def test_tool_writes_csv(tmp_path):
     assert all(float(r["freq_hz"]) <= 1000.0 for r in rows)
     loudest = max(rows, key=lambda r: float(r["level_db"]))
     assert float(loudest["freq_hz"]) == pytest.approx(120.0, abs=2.0)
+
+
+def write_tone(path):
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(RATE)
+        w.writeframes(make_tone(120.0, 3.0, RATE, 0.5).tobytes())
+
+
+def test_tool_csv_starts_at_min_hz(tmp_path):
+    wav = tmp_path / "tone.wav"
+    write_tone(wav)
+    out = tmp_path / "levels.csv"
+    subprocess.run(
+        [sys.executable, str(TOOL), str(wav), "--csv", str(out),
+         "--min-hz", "50", "--max-hz", "100",
+         "--out", str(tmp_path / "spectrum.png")],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    with open(out, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert rows
+    assert all(50.0 <= float(r["freq_hz"]) <= 100.0 for r in rows)
+
+
+def test_tool_rejects_min_above_max(tmp_path):
+    wav = tmp_path / "tone.wav"
+    write_tone(wav)
+    result = subprocess.run(
+        [sys.executable, str(TOOL), str(wav), "--min-hz", "100", "--max-hz", "50"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
