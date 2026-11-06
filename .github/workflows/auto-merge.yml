@@ -1,0 +1,89 @@
+name: Auto-merge
+
+# Squash-merges a pull request as soon as CI passes on it, but only when:
+#   - the PR was opened by an allowed author (see ALLOWED_AUTHORS below),
+#   - its branch lives in this repository (not a fork),
+#   - it targets main (stacked PRs wait until they are retargeted),
+#   - it is not a draft and has no "do not merge" label,
+#   - CI passed on the PR's newest commit.
+# PRs from outside contributors are never merged by this workflow; a
+# maintainer reviews and merges those by hand.
+#
+# GitHub only runs workflow_run workflows from the copy of this file on
+# main, so changes here take effect after they are merged.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: Merge green PR
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      # Space-separated GitHub logins whose PRs may merge automatically.
+      ALLOWED_AUTHORS: "GageLawton app/dependabot dependabot[bot]"
+    steps:
+      - name: Find the PR and merge it if allowed
+        run: |
+          set -euo pipefail
+
+          pr=$(gh pr list --head "$HEAD_BRANCH" --state open \
+                 --json number,author,baseRefName,headRefOid,isDraft,isCrossRepository,labels \
+                 --jq '.[0] // empty')
+          if [ -z "$pr" ]; then
+            echo "No open PR for branch $HEAD_BRANCH; nothing to do."
+            exit 0
+          fi
+
+          number=$(jq -r '.number' <<<"$pr")
+          author=$(jq -r '.author.login' <<<"$pr")
+          base=$(jq -r '.baseRefName' <<<"$pr")
+          head=$(jq -r '.headRefOid' <<<"$pr")
+          draft=$(jq -r '.isDraft' <<<"$pr")
+          fork=$(jq -r '.isCrossRepository' <<<"$pr")
+          blocked=$(jq -r '[.labels[].name] | index("do not merge") != null' <<<"$pr")
+
+          skip() { echo "Skipping PR #$number: $1"; exit 0; }
+
+          allowed=false
+          for a in $ALLOWED_AUTHORS; do
+            [ "$author" = "$a" ] && allowed=true
+          done
+          [ "$allowed" = true ] || skip "author $author is not on the allow list"
+          [ "$fork" = false ]   || skip "branch is in a fork"
+          [ "$base" = main ]    || skip "targets $base, not main (retarget stacked PRs first)"
+          [ "$draft" = false ]  || skip "it is a draft"
+          [ "$blocked" = false ] || skip "it has the 'do not merge' label"
+          [ "$head" = "$HEAD_SHA" ] || skip "a newer commit was pushed; waiting for its CI"
+
+          # --match-head-commit refuses the merge if the branch moved
+          # after the checks above. The branch is kept (not deleted) so
+          # PRs stacked on it are not closed.
+          if ! gh pr merge "$number" --squash --match-head-commit "$HEAD_SHA"; then
+            echo "::warning::PR #$number could not be merged (likely a conflict with main)."
+            exit 0
+          fi
+          echo "Merged PR #$number."
+
+          # A merge made with GITHUB_TOKEN does not start the push
+          # workflow on main, so start CI on main by hand.
+          gh workflow run ci.yml --ref main
