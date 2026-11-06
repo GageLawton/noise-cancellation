@@ -108,3 +108,13 @@ def test_counts_faults_and_sync_frames():
     assert "syncrx: 10 -> 12 (+2)" in lines
     assert "missed: 0 -> 1 (+1)" in lines
     assert "bad: 0 -> 0 (+0)" in lines
+
+
+def test_counts_sync_ticks_heard_and_sent():
+    log = [
+        "I (1000) telemetry: state=RUN sync=10/10",
+        "I (2000) telemetry: state=RUN sync=11/12",
+    ]
+    lines = format_summary(summarize(read_telemetry(log)))
+    assert "sync_heard: 10 -> 11 (+1)" in lines
+    assert "sync_sent: 10 -> 12 (+2)" in lines
