@@ -1,4 +1,5 @@
-# Check GitHub Actions monthly and open update PRs, keeping maintenance noise low.
+# Check GitHub Actions and the Python tool packages (tools/requirements.txt) monthly,
+# opening update PRs while keeping maintenance noise low.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -7,3 +8,9 @@ updates:
       interval: "monthly"
     labels:
       - "ci"
+  - package-ecosystem: "pip"
+    directory: "/tools"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "python"
