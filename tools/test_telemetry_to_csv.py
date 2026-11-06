@@ -6,7 +6,13 @@ import sys
 from pathlib import Path
 
 import pytest
-from telemetry_to_csv import parse_line, select_columns, select_rows, skip_rows
+from telemetry_to_csv import (
+    every_nth,
+    parse_line,
+    select_columns,
+    select_rows,
+    skip_rows,
+)
 
 TOOL = Path(__file__).with_name("telemetry_to_csv.py")
 
@@ -114,3 +120,39 @@ def test_sync_splits_into_heard_and_sent():
 
 def test_malformed_sync_is_kept_as_text():
     assert parse_line("I (1) telemetry: sync=abc") == {"sync": "abc"}
+
+
+def test_every_second_row():
+    rows = [{"line": n} for n in range(1, 6)]
+    assert every_nth(rows, 2) == [{"line": 1}, {"line": 3}, {"line": 5}]
+
+
+def test_every_one_keeps_all_rows():
+    rows = [{"line": n} for n in range(1, 6)]
+    assert every_nth(rows, 1) == rows
+
+
+def test_every_zero_exits_with_message():
+    with pytest.raises(SystemExit) as error:
+        every_nth([{"line": 1}], 0)
+    assert str(error.value) == "--every must be 1 or more"
+
+
+def test_every_applies_after_state(tmp_path):
+    log = tmp_path / "long.log"
+    log.write_text(
+        "I (1) telemetry: state=IDLE blocks=1\n"
+        "I (2) telemetry: state=RUN blocks=2\n"
+        "I (3) telemetry: state=RUN blocks=3\n"
+        "I (4) telemetry: state=RUN blocks=4\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "telemetry.csv"
+    subprocess.run(
+        [sys.executable, str(TOOL), str(log), "--out", str(out),
+         "--state", "RUN", "--every", "2"],
+        check=True,
+    )
+    with out.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    assert [r[2] for r in rows[1:]] == ["2", "4"]

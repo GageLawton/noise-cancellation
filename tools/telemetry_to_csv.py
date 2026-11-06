@@ -16,6 +16,7 @@ Usage:
     python tools/telemetry_to_csv.py monitor.log --columns state,resid
     python tools/telemetry_to_csv.py monitor.log --state RUN
     python tools/telemetry_to_csv.py monitor.log --skip 30 --state RUN
+    python tools/telemetry_to_csv.py overnight.log --every 60
 """
 
 import argparse
@@ -112,6 +113,16 @@ def skip_rows(rows, count):
     return kept
 
 
+def every_nth(rows, n):
+    """Return every nth row, starting with the first.
+
+    Exits with a message if n is below 1.
+    """
+    if n < 1:
+        sys.exit("--every must be 1 or more")
+    return rows[::n]
+
+
 def select_rows(rows, state):
     """Return the rows whose ``state`` value equals state.
 
@@ -150,6 +161,13 @@ def main():
         metavar="N",
         help="drop the first N telemetry rows (about N seconds), before --state",
     )
+    parser.add_argument(
+        "--every",
+        type=int,
+        default=1,
+        metavar="N",
+        help="keep every Nth row, after --skip and --state, to thin long logs",
+    )
     args = parser.parse_args()
 
     try:
@@ -165,6 +183,8 @@ def main():
 
     if args.state:
         rows = select_rows(rows, args.state)
+
+    rows = every_nth(rows, args.every)
 
     if args.columns:
         columns = select_columns(columns, args.columns)
