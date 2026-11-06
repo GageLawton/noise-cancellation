@@ -26,6 +26,10 @@ Clipping happens when a signal asks for a level beyond what the output can produ
 
 No two boards' clocks run at exactly the same speed, so their idea of the time slowly drifts apart. Drift is measured in parts per million (ppm): a clock 20 ppm fast gains 20 µs every second, about 72 ms an hour, which is why nodes need a shared [sync tick](#sync-tick) to stay in step.
 
+## Clock offset
+
+How far apart two boards' clocks are, in microseconds. Each node compares pairs of timestamps (its own time and the other board's time for the same event) and fits a line through them: where the line sits is the offset, and its slope is the [clock drift](#clock-drift-ppm). See [`clock_offset.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/transport/include/anc/clock_offset.hpp).
+
 ## Coordinator
 
 The coordinator is the role that collects the status of every node, so one place knows how the whole system is doing. Node 1 plays it for now, alongside its own node runtime, and the role does not move when more nodes arrive; see the [system architecture](https://github.com/GageLawton/noise-cancellation/blob/main/docs/design.md#2-system-architecture) and [`coordinator.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/coordinator/include/anc/coordinator.hpp).
@@ -109,6 +113,10 @@ The secondary path is the transfer function from the speaker, through the amplif
 ## Seqlock
 
 A seqlock lets one task update a shared value while others read it, without making the writer wait. The writer bumps a counter before and after each write, and a reader that sees the counter odd or changed during its read simply tries again; `NodeStatusStore` uses one for the status snapshot; see [`node_status.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/node_runtime/include/anc/node_status.hpp).
+
+## Sequence number
+
+A counter carried in every sync message, one bigger than the last. The receiver uses it to spot messages that went missing (a jump of more than 1) or arrived twice (a number it has already seen). A board starts again from 1 when it reboots. See [`sync_receiver.hpp`](https://github.com/GageLawton/noise-cancellation/blob/main/components/transport/include/anc/sync_receiver.hpp).
 
 ## Stack high-water mark
 
