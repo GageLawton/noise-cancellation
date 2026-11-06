@@ -17,8 +17,8 @@ public:
         path_.setCoefficients(coeffs, n);
     }
 
-    // Clears the remembered speaker samples but keeps the path, so samples
-    // from before a recalibration don't leak into the next outputs.
+    // Clears the remembered speaker samples but keeps the path, for example
+    // after a pause in audio. (setSecondaryPath() already clears them.)
     void reset() { path_.reset(); }
 
     // Takes one mic sample and the speaker sample played at the same time,
