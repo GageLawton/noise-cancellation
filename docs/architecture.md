@@ -82,10 +82,10 @@ tested on a laptop.
 
 | Header | What it does |
 |---|---|
-| [`biquad.hpp`](../components/dsp_core/include/anc/biquad.hpp) | Two-pole, two-zero filter with `bandpass()` (keeps just the hum) and `notch()` (removes it) factories. |
+| [`biquad.hpp`](../components/dsp_core/include/anc/biquad.hpp) | Two-pole, two-zero filter with `bandpass()` (keeps just the hum), `notch()` (removes it) and `highpass()` (takes out rumble below the hum) factories. |
 | [`block_processor.hpp`](../components/dsp_core/include/anc/block_processor.hpp) | `IBlockProcessor`: turns one block of mic samples into one block of speaker samples. |
 | [`dc_blocker.hpp`](../components/dsp_core/include/anc/dc_blocker.hpp) | Removes a constant offset from the mic while keeping a 60 Hz hum. |
-| [`decibels.hpp`](../components/dsp_core/include/anc/decibels.hpp) | Converts between amplitude and decibels. |
+| [`decibels.hpp`](../components/dsp_core/include/anc/decibels.hpp) | Converts between amplitude or power and decibels (`amplitudeToDb()`, `dbToAmplitude()`, `powerToDb()`). |
 | [`decimator2x.hpp`](../components/dsp_core/include/anc/decimator2x.hpp) | Halves the sample rate (16 kHz to 8 kHz) with an anti-aliasing filter. |
 | [`divergence_detector.hpp`](../components/dsp_core/include/anc/divergence_detector.hpp) | Spots a canceller going unstable from its residual power. |
 | [`fir_filter.hpp`](../components/dsp_core/include/anc/fir_filter.hpp) | Fixed-size FIR filter, used to model the speaker-to-mic path. |
@@ -151,10 +151,11 @@ Runs the node.
 
 ### transport
 
-Talking between nodes (M7, planned).
+Talking between nodes (M7). On one board the sync messages loop back in memory until there's a second board.
 
 | Header | What it does |
 |---|---|
+| [`clock_offset.hpp`](../components/transport/include/anc/clock_offset.hpp) | `ClockOffset`: fits a line through (local, remote) time pairs to get the other node's clock offset and drift. |
 | [`crc8.hpp`](../components/transport/include/anc/crc8.hpp) | One-byte CRC-8 checksum, so a node can throw away a corrupted message. |
 | [`gpio_sync_tick.hpp`](../components/transport/include/anc/gpio_sync_tick.hpp) | `GpioSyncTick`: the real `ISyncTick` on the board. A short pulse on one GPIO sends a tick; a rising edge on another receives one (device only). |
 | [`sync_frame.hpp`](../components/transport/include/anc/sync_frame.hpp) | A `SyncMessage` on the wire: its 20 bytes plus a CRC-8, so a corrupted frame is thrown away. |
