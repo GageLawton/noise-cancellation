@@ -47,7 +47,7 @@ def summarize(records):
     """Return a dict of summary numbers for a non-empty list of records.
 
     counters maps each of COUNTERS that appears to (first, last, growth).
-    mic, resid and hum are each (min, mean, max) or None, lock_fraction is a number from 0 to 1
+    mic, resid, hum and offset are each (min, mean, max) or None, lock_fraction is a number from 0 to 1
     or None, and states lists each state in order of first appearance.
     """
     summary = {"lines": len(records), "seconds": len(records)}  # one line per second
@@ -62,6 +62,7 @@ def summarize(records):
     summary["mic"] = level_range(records, "mic")
     summary["resid"] = level_range(records, "resid")
     summary["hum"] = level_range(records, "hum")
+    summary["offset"] = level_range(records, "offset")
 
     locks = [r["lock"] for r in records if "lock" in r]
     summary["lock_fraction"] = (
@@ -93,6 +94,9 @@ def format_summary(summary):
             lines.append(
                 f"{key} dBFS: min {low:.1f}, mean {mean:.1f}, max {high:.1f}"
             )
+    if summary["offset"] is not None:
+        low, mean, high = summary["offset"]
+        lines.append(f"clock offset us: min {low:.0f}, mean {mean:.0f}, max {high:.0f}")
     if summary["lock_fraction"] is not None:
         lines.append(f"locked: {100 * summary['lock_fraction']:.0f}% of lines")
     lines.append("states: " + " -> ".join(str(s) for s in summary["states"]))
