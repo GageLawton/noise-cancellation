@@ -15,6 +15,7 @@ Usage:
     python tools/telemetry_to_csv.py monitor.log --out telemetry.csv
     python tools/telemetry_to_csv.py monitor.log --columns state,resid
     python tools/telemetry_to_csv.py monitor.log --state RUN
+    python tools/telemetry_to_csv.py monitor.log --skip 30 --state RUN
 """
 
 import argparse
@@ -91,6 +92,19 @@ def select_columns(columns, wanted):
     return selected
 
 
+def skip_rows(rows, count):
+    """Return rows without the first count of them.
+
+    Exits with a message if count is negative or no row is left.
+    """
+    if count < 0:
+        sys.exit("--skip must be 0 or more")
+    kept = rows[count:]
+    if not kept:
+        sys.exit(f"No telemetry lines after skipping {count}")
+    return kept
+
+
 def select_rows(rows, state):
     """Return the rows whose ``state`` value equals state.
 
@@ -122,6 +136,13 @@ def main():
         "--state",
         help="keep only rows with this state, for example RUN (default: all)",
     )
+    parser.add_argument(
+        "--skip",
+        type=int,
+        default=0,
+        metavar="N",
+        help="drop the first N telemetry rows (about N seconds), before --state",
+    )
     args = parser.parse_args()
 
     try:
@@ -132,6 +153,8 @@ def main():
 
     if not rows:
         sys.exit("No telemetry: lines found")
+
+    rows = skip_rows(rows, args.skip)
 
     if args.state:
         rows = select_rows(rows, args.state)
