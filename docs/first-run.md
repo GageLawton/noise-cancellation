@@ -48,11 +48,12 @@ Two more states show up only when something needs attention:
 Once the tasks start, a line like this appears once a second:
 
 ```
-I (12345) telemetry: state=RUN conv=1 resid=-48.2dBFS freq=60.02 lock=1 corr=0.05 low=0 recal=0 clip=0 blocks=2500 filter=2500 under=0 align=80000 drop=0 mic=-38.5dBFS hum=-52.0dBFS wnorm=0.412 faults=0
+I (12345) telemetry: up=12 state=RUN conv=1 resid=-48.2dBFS freq=60.02 lock=1 corr=0.05 low=0 recal=0 clip=0 blocks=2500 filter=2500 under=0 align=80000 drop=0 mic=-38.5dBFS hum=-52.0dBFS wnorm=0.412 faults=0 sync=11/11 syncrx=11 missed=0 bad=0
 ```
 
 | Field | What it means | Healthy value |
 |---|---|---|
+| `up` | Seconds since the board booted. | Grows by 1 every line. |
 | `state` | The node's current state (see above). | `RUN` after a few seconds. |
 | `conv` | 1 when the canceller's residual has stayed low for half a second. | 1 within a few seconds of reaching `RUN`. |
 | `resid` | How loud the hum still is after cancelling, in dBFS. Only updated in `RUN`. | Lower is better; it should fall after `RUN` starts. |
@@ -71,6 +72,10 @@ I (12345) telemetry: state=RUN conv=1 resid=-48.2dBFS freq=60.02 lock=1 corr=0.0
 | `hum` | Level of just the hum at the tracked frequency (`freq`), in dBFS, measured on the mic over each 100 ms. Shows -120.0 until the first measurement. | Falls after `RUN` starts as the canceller takes the hum out; well below `mic`. |
 | `wnorm` | Size of the canceller's weights (the square root of the sum of their squares). Only updated in `RUN`. | Settles at a steady value. If it keeps growing, the canceller is diverging. |
 | `faults` | How many times the node has entered `FAULT` since boot. | 0. |
+| `sync` | Sync ticks heard / sync ticks sent on the sync line, one a second. | With the jumper from #267 in place, the two numbers match. Without it, the first stays at 0. |
+| `syncrx` | Framed sync messages accepted (each tick also carries a numbered message). | Grows by 1 a second. |
+| `missed` | Sync message numbers that were skipped. | Stays at 0 on one board. |
+| `bad` | Sync frames that failed their check and were thrown away. | Stays at 0. |
 
 Every 10 seconds two more lines appear:
 
