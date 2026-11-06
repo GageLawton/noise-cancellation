@@ -144,3 +144,16 @@ def test_levels_print_after_mic(summary):
 def test_log_without_resid_gives_none():
     records = read_telemetry(["I (1) telemetry: state=RUN mic=-40.0dBFS"])
     assert summarize(records)["resid"] is None
+
+
+def test_clock_offset_range():
+    records = read_telemetry(
+        [
+            "I (1) telemetry: state=RUN offset=-5us",
+            "I (2) telemetry: state=RUN offset=-3us",
+            "I (3) telemetry: state=RUN offset=-1us",
+        ]
+    )
+    summary = summarize(records)
+    assert summary["offset"] == (-5, -3, -1)
+    assert any("clock offset" in line for line in format_summary(summary))
