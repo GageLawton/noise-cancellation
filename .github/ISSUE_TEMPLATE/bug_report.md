@@ -21,6 +21,8 @@ assignees: ''
 - Board: <!-- e.g. ESP32-S3 DevKitC, or "host tests only" -->
 - ESP-IDF version: <!-- e.g. v5.3, or "host tests only" -->
 - OS: <!-- Windows, macOS, Linux -->
+- Commit: <!-- the output of git rev-parse --short HEAD -->
+- Part: <!-- firmware, host tests, a tool in tools/ (which one), or docs -->
 
 **Log output**
 <!-- Paste the serial monitor or test output here. -->
