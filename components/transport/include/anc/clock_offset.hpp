@@ -19,6 +19,10 @@ public:
 
     // Records one pair, overwriting the oldest once the ring is full.
     void add(uint64_t localUs, uint64_t remoteUs) {
+        // A real clock never runs backwards, so a smaller remote time means
+        // the other node rebooted: its old pairs no longer fit.
+        if (count_ > 0 && remoteUs < remote_[(next_ + kPairs - 1) % kPairs])
+            reset();
         local_[next_]  = localUs;
         remote_[next_] = remoteUs;
         next_          = (next_ + 1) % kPairs;
