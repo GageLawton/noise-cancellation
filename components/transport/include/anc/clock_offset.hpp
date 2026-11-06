@@ -27,6 +27,15 @@ public:
         fit();
     }
 
+    // Forgets every pair, for when the other node restarts and its clock
+    // starts again near 0.
+    void reset() {
+        next_     = 0;
+        count_    = 0;
+        slope_    = 1.0;
+        offsetUs_ = 0.0;
+    }
+
     bool ready() const { return count_ >= kMinFits; }
 
     // Remote minus local at the newest pair, from the fitted line.
