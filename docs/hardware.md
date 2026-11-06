@@ -36,6 +36,15 @@ With a single board, a jumper wire from GPIO15 to GPIO16 lets the board hear its
 
 Both boards run at 3.3 V logic. Never connect a 5 V pin to a GPIO.
 
+## Troubleshooting
+
+The same few problems come up on most new breadboards. Pin numbers below match the [pin map](#pin-map).
+
+- **Flashing fails or the port isn't found.** You are probably on the wrong USB-C port. Use the one labelled COM (USB-serial), not the one labelled USB. Check the port name with `idf.py -p PORT monitor`.
+- **The mic level reads very low or never changes.** Usually a mic wiring fault. Check SD goes to GPIO 7, VDD is on 3V3 (not 5V), and L/R is tied to GND so the mic sends on the left channel.
+- **No sound from the speaker.** Usually an amp wiring fault. Check VIN is on 5V, DIN goes to GPIO 6, and BCLK and LRC (WS) are shared with the mic on GPIO 4 and GPIO 5.
+- **Loud buzzing or clicks.** Usually a ground or wiring problem. Check all grounds are joined and the wires are short.
+
 ## Safety notes
 
 - The microphone runs on 3.3 V. Never connect it to 5 V.
