@@ -48,7 +48,7 @@ Two more states show up only when something needs attention:
 Once the tasks start, a line like this appears once a second:
 
 ```
-I (12345) telemetry: up=12 state=RUN conv=1 resid=-48.2dBFS freq=60.02 lock=1 corr=0.05 low=0 recal=0 clip=0 blocks=2500 filter=2500 under=0 align=80000 drop=0 mic=-38.5dBFS hum=-52.0dBFS wnorm=0.412 faults=0 sync=11/11 syncrx=11 missed=0 bad=0
+I (12345) telemetry: up=12 state=RUN conv=1 resid=-48.2dBFS freq=60.02 lock=1 corr=0.05 low=0 recal=0 clip=0 blocks=2500 filter=2500 under=0 align=80000 drop=0 mic=-38.5dBFS hum=-52.0dBFS wnorm=0.412 faults=0 sync=11/11 syncrx=11 missed=0 bad=0 offset=-3us
 ```
 
 | Field | What it means | Healthy value |
@@ -76,6 +76,7 @@ I (12345) telemetry: up=12 state=RUN conv=1 resid=-48.2dBFS freq=60.02 lock=1 co
 | `syncrx` | Framed sync messages accepted (each tick also carries a numbered message). | Grows by 1 a second. |
 | `missed` | Sync message numbers that were skipped. | Stays at 0 on one board. |
 | `bad` | Sync frames that failed their check and were thrown away. | Stays at 0. |
+| `offset` | How far the other node's clock is from ours, in microseconds, once 4 sync messages have arrived. 0 until then. | Close to 0 on one board (only the few microseconds between sending and reading back). |
 
 Every 10 seconds two more lines appear:
 

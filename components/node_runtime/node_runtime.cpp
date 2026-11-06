@@ -601,7 +601,14 @@ void NodeRuntime::syncLoop() {
         writeFrame(sent, frame);
         SyncMessage received{};
         if (readFrame(frame, sizeof(frame), received)) {
-            (void)syncRx_.accept(received);
+            if (syncRx_.accept(received)) {
+                clockOffset_.add(static_cast<uint64_t>(esp_timer_get_time()),
+                                 received.timestampUs);
+                if (clockOffset_.ready()) {
+                    clockOffsetUs_.store(static_cast<float>(clockOffset_.offsetUs()),
+                                         std::memory_order_relaxed);
+                }
+            }
         } else {
             syncBadFrames_.fetch_add(1, std::memory_order_relaxed);
         }
@@ -768,7 +775,7 @@ void NodeRuntime::telemetryLoop() {
             "recal=%d "
             "clip=%u blocks=%u filter=%u under=%u align=%u drop=%u mic=%.1fdBFS "
             "hum=%.1fdBFS wnorm=%.3f faults=%u sync=%u/%u "
-            "syncrx=%u missed=%u bad=%u",
+            "syncrx=%u missed=%u bad=%u offset=%.0fus",
             static_cast<unsigned>(esp_timer_get_time() / 1000000), toString(s.state),
             static_cast<int>(converged_.load(std::memory_order_relaxed)),
             residualDbfs_.load(std::memory_order_relaxed),
@@ -791,7 +798,8 @@ void NodeRuntime::telemetryLoop() {
             static_cast<unsigned>(syncSent_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(syncRxAccepted_.load(std::memory_order_relaxed)),
             static_cast<unsigned>(syncRxMissed_.load(std::memory_order_relaxed)),
-            static_cast<unsigned>(syncBadFrames_.load(std::memory_order_relaxed)));
+            static_cast<unsigned>(syncBadFrames_.load(std::memory_order_relaxed)),
+            static_cast<double>(clockOffsetUs_.load(std::memory_order_relaxed)));
         // The line above shows tone 0 only. With harmonics, list them all
         // as frequency/lock.
         if (config_.numTones > 1) {
