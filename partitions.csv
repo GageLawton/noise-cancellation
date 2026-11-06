@@ -1,5 +1,11 @@
+# Flash layout. `idf.py erase-flash` wipes every partition below, including
+# the saved node.json settings.
 # name,   type, subtype, offset,  size,    flags
+# nvs: small key-value store ESP-IDF uses (Wi-Fi/PHY data and similar).
 nvs,      data, nvs,     ,        24K,
+# phy_init: radio calibration data.
 phy_init, data, phy,     ,        4K,
+# factory: the firmware app itself.
 factory,  app,  factory, ,        1500K,
+# config: SPIFFS file system holding node.json (the node's settings).
 config,   data, spiffs,  ,        64K,
