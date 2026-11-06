@@ -51,7 +51,14 @@ def parse_line(line):
     fields = {}
     for pair in line.split(MARKER, 1)[1].split():
         key, sep, value = pair.partition("=")
-        if sep and key:
+        if not (sep and key):
+            continue
+        heard, slash, sent = value.partition("/")
+        if key == "sync" and slash and heard.isdigit() and sent.isdigit():
+            # sync=heard/sent: two counts, so give each its own column.
+            fields["sync_heard"] = int(heard)
+            fields["sync_sent"] = int(sent)
+        else:
             fields[key] = parse_value(value)
     return fields
 
