@@ -13,9 +13,11 @@ requirements.txt:
 Usage:
     python tools/spectrum.py recording.wav
     python tools/spectrum.py recording.wav --out room.png --max-hz 500
+    python tools/spectrum.py recording.wav --csv room.csv
 """
 
 import argparse
+import csv
 import os
 import sys
 
@@ -52,9 +54,28 @@ def main():
         default=1000.0,
         help="highest frequency to plot in Hz (default 1000)",
     )
+    parser.add_argument(
+        "--csv",
+        metavar="OUT",
+        help="also write freq_hz,level_db rows up to --max-hz to this CSV",
+    )
     args = parser.parse_args()
     if args.max_hz <= 0:
         sys.exit("--max-hz must be greater than 0")
+
+    signal, rate = read_wav(args.path)
+    if len(signal) == 0:
+        sys.exit("The recording has no samples")
+    freqs, levels = spectrum_db(signal, rate)
+    shown = freqs <= args.max_hz
+
+    # The CSV comes first so it works without matplotlib.
+    if args.csv:
+        with open(args.csv, "w", newline="", encoding="utf-8") as out:
+            writer = csv.writer(out)
+            writer.writerow(["freq_hz", "level_db"])
+            writer.writerows(zip(freqs[shown], levels[shown]))
+        print(f"wrote {args.csv}")
 
     try:
         import matplotlib
@@ -62,13 +83,10 @@ def main():
         matplotlib.use("Agg")  # write a file; no window needed
         import matplotlib.pyplot as plt
     except ImportError:
+        if args.csv:
+            print("matplotlib is not installed, so the PNG was skipped")
+            return
         sys.exit("spectrum.py needs matplotlib: pip install matplotlib")
-
-    signal, rate = read_wav(args.path)
-    if len(signal) == 0:
-        sys.exit("The recording has no samples")
-    freqs, levels = spectrum_db(signal, rate)
-    shown = freqs <= args.max_hz
 
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(freqs[shown], levels[shown])

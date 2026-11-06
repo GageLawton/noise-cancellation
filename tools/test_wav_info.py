@@ -79,6 +79,7 @@ def test_cli_prints_metadata_and_levels(tmp_path):
     assert result.stdout.splitlines() == [
         f"file:        {path}", "channels:    1", "sample rate: 8000 Hz",
         "duration:    1.00 s", "peak:        -6.0 dBFS", "rms:         -6.0 dBFS",
+        "clipped:     0 samples",
     ]
 
 
@@ -169,3 +170,27 @@ def test_stereo_levels_per_channel(tmp_path):
         "peak_dbfs": None,
         "rms_dbfs": None,
     }
+
+
+def test_half_scale_tone_has_no_clipped_samples(tmp_path):
+    path = tmp_path / "half-tone.wav"
+    write_wav(path, make_tone(120.0, 1.0, 8000, 0.5).tobytes())
+    assert summarize(path)["clipped_samples"] == 0
+
+
+def test_clipped_samples_are_counted(tmp_path):
+    import json
+
+    path = tmp_path / "clipped.wav"
+    samples = make_tone(120.0, 1.0, 8000, 0.5)
+    samples[[10, 200, 3000]] = 32767
+    write_wav(path, samples.tobytes())
+    assert summarize(path)["clipped_samples"] == 3
+
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).with_name("wav_info.py")), str(path), "--json"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout)["clipped_samples"] == 3

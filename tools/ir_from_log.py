@@ -9,10 +9,12 @@ Usage:
     python tools/ir_from_log.py monitor.log
     python tools/ir_from_log.py monitor.log --csv ir.csv
     python tools/ir_from_log.py monitor.log --rate 16000
+    python tools/ir_from_log.py monitor.log --json
 """
 
 import argparse
 import csv
+import json
 import re
 import sys
 
@@ -83,6 +85,11 @@ def main():
         default=SAMPLE_RATE_HZ,
         help=f"sample rate in Hz, for the delay (default: {SAMPLE_RATE_HZ})",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the summary as one JSON object instead of text",
+    )
     args = parser.parse_args()
 
     try:
@@ -103,11 +110,26 @@ def main():
     taps = taps_to_list(found)
 
     index, value = find_peak(taps)
-    print(f"taps:  {len(taps)}")
-    print(f"peak:  index {index}, value {value:.4f}")
-    print(f"delay: {1000.0 * index / args.rate:.3f} ms at {args.rate} Hz")
     after = taps_after_peak(taps)
-    print(f"after peak: {after} taps ({1000.0 * after / args.rate:.3f} ms)")
+    if args.json:
+        # Warnings stay on stderr, so stdout is always parseable JSON.
+        print(
+            json.dumps(
+                {
+                    "taps": len(taps),
+                    "peak_index": index,
+                    "peak_value": value,
+                    "delay_ms": 1000.0 * index / args.rate,
+                    "taps_after_peak": after,
+                    "missing": missing,
+                }
+            )
+        )
+    else:
+        print(f"taps:  {len(taps)}")
+        print(f"peak:  index {index}, value {value:.4f}")
+        print(f"delay: {1000.0 * index / args.rate:.3f} ms at {args.rate} Hz")
+        print(f"after peak: {after} taps ({1000.0 * after / args.rate:.3f} ms)")
     if after + 1 < MIN_TAIL_TAPS:
         print(
             f"warning: fewer than {MIN_TAIL_TAPS} taps from the peak on; "
