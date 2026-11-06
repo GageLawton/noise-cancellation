@@ -1,4 +1,4 @@
-# Keep LF endings and language-specific indentation consistent across editors.
+# Keep line endings (LF, CRLF for Windows scripts) and indentation consistent across editors.
 root = true
 
 [*]
@@ -21,3 +21,13 @@ indent_size = 2
 
 [Makefile]
 indent_style = tab
+
+# Windows scripts use CRLF, matching .gitattributes.
+[*.{ps1,bat,cmd}]
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+
+[*.sh]
+indent_style = space
+indent_size = 4
