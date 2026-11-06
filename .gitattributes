@@ -1,6 +1,8 @@
-# Store text and shell files with LF; PowerShell scripts use CRLF.
+# Store text and shell files with LF; Windows scripts (.ps1, .bat, .cmd) use CRLF.
 * text=auto eol=lf
 *.sh text eol=lf
 *.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
 *.wav binary
 *.png binary
