@@ -24,6 +24,7 @@ struct Field {
 
 inline constexpr Field<float> kFloatFields[] = {
     {"dsp.normalized_step_size", &NodeConfig::normalizedStepSize},
+    {"calibration.probe_amplitude", &NodeConfig::probeAmplitude},
     {"calibration.correlation_threshold", &NodeConfig::correlationThreshold},
     {"tracking.max_drift_rate_hz_per_sec", &NodeConfig::maxDriftRateHzPerSec},
     {"tracking.watch_correlation_threshold", &NodeConfig::watchCorrelationThreshold},
