@@ -90,6 +90,12 @@ CI rejects code that isn't formatted.
    tested it.
 4. Make sure CI is green. If a check fails, its log says why.
 
+A maintainer reviews and merges PRs from contributors by hand. PRs
+opened by the maintainer's own account and Dependabot merge
+automatically once CI passes on main-targeted, non-draft PRs (see
+`.github/workflows/auto-merge.yml`). Add the `do not merge` label to
+hold one back.
+
 ## Hardware
 
 The firmware targets an ESP32-S3 with an I2S microphone and an I2S
