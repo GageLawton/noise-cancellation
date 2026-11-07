@@ -60,6 +60,9 @@ and a cancelled recording.
 
 Bench check [#253](https://github.com/GageLawton/noise-cancellation/issues/253):
 first boot of the full firmware, from BOOT to RUN.
+The board run is now [#486](https://github.com/GageLawton/noise-cancellation/issues/486). Run
+[`tools/boot_check.py`](../tools/boot_check.py) on the saved log; its output
+gives the columns below.
 
 | Date | Commit | Reached RUN (yes/no) | Peak tap | Delay ms | Underruns after 2 min | Notes |
 |---|---|---|---|---|---|---|
@@ -69,6 +72,9 @@ first boot of the full firmware, from BOOT to RUN.
 
 Bench check [#264](https://github.com/GageLawton/noise-cancellation/issues/264):
 how loud is the hum the frequency tracker sees?
+The board run is now [#488](https://github.com/GageLawton/noise-cancellation/issues/488). Run
+[`tools/bench_summary.py`](../tools/bench_summary.py) on the saved log; its
+hum lines give the columns below.
 
 | Date | Commit | Hum source | hum dBFS | Locked at default (yes/no) | Lowest min_lock_amplitude that locked | Notes |
 |---|---|---|---|---|---|---|
@@ -79,6 +85,9 @@ how loud is the hum the frequency tracker sees?
 Bench check [#265](https://github.com/GageLawton/noise-cancellation/issues/265):
 stack and timing headroom over 10 minutes. Each task column is the smallest
 free stack seen, in bytes.
+The board run is now [#492](https://github.com/GageLawton/noise-cancellation/issues/492). Run
+[`tools/stack_check.py`](../tools/stack_check.py) on the saved log; its output
+gives the columns below.
 
 | Date | Commit | audio_io | filter | alignment | config | telemetry | Notes |
 |---|---|---|---|---|---|---|---|
@@ -88,6 +97,9 @@ free stack seen, in bytes.
 
 Bench check [#267](https://github.com/GageLawton/noise-cancellation/issues/267):
 sync tick loopback with a jumper wire.
+The board run is now [#490](https://github.com/GageLawton/noise-cancellation/issues/490). Flash
+[`examples/sync_loopback/`](../examples/sync_loopback/); its `run N:` lines
+give the columns below.
 
 | Date | Commit | Received with jumper | Received without | Worst round trip µs | Notes |
 |---|---|---|---|---|---|
