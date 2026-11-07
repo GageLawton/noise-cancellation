@@ -157,7 +157,7 @@ python tools/telemetry_to_csv.py run.log --out telemetry.csv
 
 ### Checking a saved log
 
-Three tools read a saved log and answer a bench check for you:
+Four tools read a saved log and answer a bench check for you:
 
 - [`tools/boot_check.py`](../tools/boot_check.py) checks a first boot: which
   states the node reached, the calibration peak and any warnings, the last
@@ -167,6 +167,8 @@ Three tools read a saved log and answer a bench check for you:
   tracker was locked.
 - [`tools/stack_check.py`](../tools/stack_check.py) checks stack headroom: the
   smallest free stack each task had, and whether `under=` or `drop=` grew.
+- [`tools/console_check.py`](../tools/console_check.py) checks the serial
+  commands run: `help`, `set`, `get`, `recal`, `save` and the reboot after it.
 
 bash:
 
@@ -174,6 +176,7 @@ bash:
 python tools/boot_check.py run.log
 python tools/bench_summary.py run.log
 python tools/stack_check.py run.log
+python tools/console_check.py console.log
 ```
 
 PowerShell:
@@ -182,8 +185,9 @@ PowerShell:
 python tools\boot_check.py run.log
 python tools\bench_summary.py run.log
 python tools\stack_check.py run.log
+python tools\console_check.py console.log
 ```
 
-`boot_check.py` and `stack_check.py` end with `RESULT: PASS` or
-`RESULT: CHECK` and the reasons, and exit with 1 when the result is `CHECK`,
-so a script can tell whether the run passed.
+`boot_check.py`, `stack_check.py` and `console_check.py` end with
+`RESULT: PASS` or `RESULT: CHECK` and the reasons, and exit with 1 when the
+result is `CHECK`, so a script can tell whether the run passed.
