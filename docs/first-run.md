@@ -130,6 +130,24 @@ PowerShell:
 idf.py -p PORT monitor | Tee-Object run.log
 ```
 
+[`tools/capture.py`](../tools/capture.py) saves a log without `idf.py`. It
+reads the board's port, puts the seconds since the start in front of each
+line, and stops after `--seconds` or when you press Ctrl+C. It needs pyserial
+(`python -m pip install pyserial`). The log checkers below read its logs the
+same way as a `tee` log.
+
+bash:
+
+```bash
+python tools/capture.py /dev/ttyUSB0 --out run.log --seconds 60
+```
+
+PowerShell:
+
+```powershell
+python tools\capture.py COM5 --out run.log --seconds 60
+```
+
 Turn the telemetry lines into a table you can open in a spreadsheet with
 [`tools/telemetry_to_csv.py`](../tools/telemetry_to_csv.py):
 
