@@ -12,7 +12,8 @@ the first-boot bench check (#253) so you don't have to read the log by hand:
 
 It ends with ``RESULT: PASS`` when the node reached RUN with no crash,
 underruns, drops or warnings, and ``RESULT: CHECK`` with the reasons
-otherwise. The exit code is 0 for PASS and 1 for CHECK.
+otherwise. The exit code is 0 for PASS and 1 for CHECK. Logs saved by
+``tools/capture.py``, which puts a time stamp in front of each line, work too.
 
 Usage:
     python tools/boot_check.py boot.log
@@ -36,6 +37,8 @@ CRASH_MARKERS = ("Guru Meditation", "abort()", "Backtrace:", "assert failed")
 # The ROM prints "rst:0x1 (POWERON_RESET)" on every boot, so the first one
 # is normal and each later one is a reboot.
 RESET = "rst:"
+# tools/capture.py starts each line with the seconds since it started.
+CAPTURE_STAMP = re.compile(r"^\d+\.\d+ ")
 
 
 def check(lines):
@@ -47,7 +50,7 @@ def check(lines):
     resets = 0
     last_counts = {}
     for raw in lines:
-        line = raw.rstrip("\r\n")
+        line = CAPTURE_STAMP.sub("", raw.rstrip("\r\n"), count=1)
         match = TRANSITION.search(line)
         if match:
             if not states:
