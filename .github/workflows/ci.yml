@@ -120,6 +120,22 @@ jobs:
           target: esp32s3
           path: 'examples/i2s_bringup'
 
+  sync-loopback-build:
+    name: Example build (sync_loopback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # examples/sync_loopback is its own ESP-IDF project that uses the real
+      # GpioSyncTick from components/transport, so this catches a change
+      # there that breaks the loopback check.
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32s3
+          path: 'examples/sync_loopback'
+
   format:
     name: Format check
     runs-on: ubuntu-latest
