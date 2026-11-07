@@ -136,3 +136,36 @@ Turn the telemetry lines into a table you can open in a spreadsheet with
 ```bash
 python tools/telemetry_to_csv.py run.log --out telemetry.csv
 ```
+
+### Checking a saved log
+
+Three tools read a saved log and answer a bench check for you:
+
+- [`tools/boot_check.py`](../tools/boot_check.py) checks a first boot: which
+  states the node reached, the calibration peak and any warnings, the last
+  `under=` and `drop=`, and any crash or reboot.
+- [`tools/bench_summary.py`](../tools/bench_summary.py) summarizes a long run:
+  drops, faults, the mic, residual and hum levels, and how often the frequency
+  tracker was locked.
+- [`tools/stack_check.py`](../tools/stack_check.py) checks stack headroom: the
+  smallest free stack each task had, and whether `under=` or `drop=` grew.
+
+bash:
+
+```bash
+python tools/boot_check.py run.log
+python tools/bench_summary.py run.log
+python tools/stack_check.py run.log
+```
+
+PowerShell:
+
+```powershell
+python tools\boot_check.py run.log
+python tools\bench_summary.py run.log
+python tools\stack_check.py run.log
+```
+
+`boot_check.py` and `stack_check.py` end with `RESULT: PASS` or
+`RESULT: CHECK` and the reasons, and exit with 1 when the result is `CHECK`,
+so a script can tell whether the run passed.
