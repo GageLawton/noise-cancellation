@@ -152,6 +152,36 @@ leave the node running for 8 hours or more.
 |---|---|---|---|---|---|---|---|
 | | | | | | | | |
 
+## Serial commands (#497)
+
+Bench check [#497](https://github.com/GageLawton/noise-cancellation/issues/497): every serial command
+(`help`, `get`, `set`, `recal`, `save` and a restart) on the real console.
+Run [`tools/console_check.py`](../tools/console_check.py) on the saved
+session; it says PASS or CHECK for each of the six steps.
+
+| Date | Commit | `console_check.py` result | Steps that said CHECK | Notes |
+|---|---|---|---|---|
+| | | | | |
+
+## Room hum survey (#300)
+
+Bench check [#300](https://github.com/GageLawton/noise-cancellation/issues/300): which hums the room
+has, from a 30-second recording with the measurement mic where the board will
+sit. [`tools/analyze.py`](../tools/analyze.py) in survey mode lists the peaks.
+
+| Date | Where | Strongest peak below 400 Hz (Hz) | Its level (dB) | Other audible peaks | Notes |
+|---|---|---|---|---|---|
+| | | | | | |
+
+## Two-board sync (#302)
+
+Bench check [#302](https://github.com/GageLawton/noise-cancellation/issues/302): the sync tick between
+two boards, with `examples/sync_two_boards/` flashed to both.
+
+| Date | Commit | Received | Largest gap µs | Notes |
+|---|---|---|---|---|
+| | | | | |
+
 ## Hardware
 
 The setup these results were measured on. The parts and wiring are in
