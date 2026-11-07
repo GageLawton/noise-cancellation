@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from bench_summary import format_summary, read_telemetry, summarize
+from bench_summary import dbfs_to_amplitude, format_summary, read_telemetry, summarize
 
 TOOL = Path(__file__).with_name("bench_summary.py")
 
@@ -157,3 +157,31 @@ def test_clock_offset_range():
     summary = summarize(records)
     assert summary["offset"] == (-5, -3, -1)
     assert any("clock offset" in line for line in format_summary(summary))
+
+
+def test_hum_and_freq_split_by_lock(summary):
+    # lock=1 lines have hum -22 and -24; the lock=0 RUN line has -20.
+    assert summary["hum_locked"] == (-24.0, -23.0, -22.0)
+    assert summary["hum_unlocked"] == (-20.0, -20.0, -20.0)
+    # The sample log has no freq= field.
+    assert summary["freq_locked"] is None
+
+
+def test_freq_while_locked_ignores_unlocked_lines():
+    records = read_telemetry([
+        "I (1) telemetry: state=RUN lock=0 freq=0.00 hum=-40.0dBFS",
+        "I (2) telemetry: state=RUN lock=1 freq=59.90 hum=-30.0dBFS",
+        "I (3) telemetry: state=RUN lock=1 freq=60.10 hum=-30.0dBFS",
+    ])
+    result = summarize(records)
+    assert result["freq_locked"] == pytest.approx((59.9, 60.0, 60.1))
+    text = "\n".join(format_summary(result))
+    assert "freq Hz while locked: min 59.90, mean 60.00, max 60.10" in text
+    assert "hum dBFS while unlocked: min -40.0, mean -40.0, max -40.0" in text
+
+
+def test_hum_amplitude_line(summary):
+    text = "\n".join(format_summary(summary))
+    # Mean hum is -22 dBFS, which is an amplitude of about 0.079.
+    assert "hum amplitude: mean 0.079" in text
+    assert dbfs_to_amplitude(-20.0) == pytest.approx(0.1)
