@@ -355,7 +355,9 @@ components/
   transport/     wired GPIO sync shim
 main/            app_main.cpp
 examples/
-  i2s_bringup/   standalone bring-up app: mic level meter and test tones
+  i2s_bringup/     standalone bring-up app: mic level meter and test tones
+  sync_loopback/   sync tick check on one board, with a jumper wire
+  sync_two_boards/ sync tick check between two boards
 test/            host build + Unity tests
   fakes/         fakes and the simulated room for host tests
 docs/            design, config, hardware, bench results and glossary pages
