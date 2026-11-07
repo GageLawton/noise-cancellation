@@ -88,11 +88,12 @@ tested end to end. See `test_cancels_simulated_hum` in
 
 ## Checks CI runs
 
-Every push and pull request runs five jobs
+Every push and pull request runs eight jobs
 ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)):
 
 - **Host tests** builds every `test_*.cpp` with `-Werror` and runs them with `ctest`.
 - **Python tools** runs `ruff check tools` and `python -m pytest tools` on the scripts in `tools/`.
 - **Coverage** builds the host tests with coverage turned on and fails if less than 85% of the lines in `components/` run during the tests, so new code needs tests.
 - **Firmware build (ESP32-S3)** builds the real firmware with ESP-IDF v5.3. It is the only job that sees ESP-IDF, so it catches driver and component mistakes the host tests can't.
+- **Example build (i2s_bringup)**, **Example build (sync_loopback)** and **Example build (sync_two_boards)** build each standalone app in `examples/` with ESP-IDF v5.3, so a change to a component they use can't break them unnoticed.
 - **Format check** runs `clang-format --dry-run --Werror` over all C++ files. Run `./scripts/format.sh` before you push to fix formatting.
