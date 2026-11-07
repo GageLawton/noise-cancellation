@@ -206,6 +206,10 @@ I (xxx) runtime: BOOT -> INIT_HAL
 I (xxx) telemetry: state=RUN conv=0 resid=0.000000 freq=60.00 lock=0 clip=0
 ```
 
+To check one piece of hardware at a time (the mic and amp wiring, or the sync
+wire), use the small standalone apps in [`examples/`](examples/README.md). That
+page says which one to use when and how to build it.
+
 ### Flashing tips and troubleshooting
 
 **Use the port labelled COM (or UART), not USB.** The ESP32-S3 DevKitC
