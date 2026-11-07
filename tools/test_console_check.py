@@ -92,6 +92,11 @@ def test_empty_log_fails_everything():
     assert format_report(steps)[-1].startswith("RESULT: CHECK")
 
 
+def test_capture_py_time_stamps_are_ignored():
+    stamped = "".join(f"{i}.{i:03d} {line}\n" for i, line in enumerate(GOOD.splitlines()))
+    assert results(stamped) == {n: True for n in range(1, 7)}
+
+
 def test_typos_are_listed():
     log = GOOD + "> hlep\nunknown command, try help\n"
     assert not_understood(log.splitlines()) == ["hlep"]

@@ -16,7 +16,8 @@ what you typed and what came back. It checks each step:
 6. ``set output.ceiling 0.8`` and ``save`` put it back.
 
 It prints PASS or CHECK for each step and ends with ``RESULT: PASS`` or
-``RESULT: CHECK``. The exit code is 0 for PASS and 1 for CHECK. Typed lines
+``RESULT: CHECK``. The exit code is 0 for PASS and 1 for CHECK. Logs saved by
+``tools/capture.py`` (with its time stamps) work too. Typed lines
 the console didn't understand are listed too, since they are usually typos.
 
 Usage:
@@ -38,6 +39,8 @@ CAL_PEAK = re.compile(r"calibration: peak at tap \d+, value")
 # The ROM prints "rst:" and the runtime prints "ANC node starting" on boot.
 BOOT_MARKERS = ("rst:", "ANC node starting")
 GET_ANSWER = re.compile(r"^(\S+) = (\S+)$")
+# tools/capture.py starts each line with the seconds since it started.
+CAPTURE_STAMP = re.compile(r"^\d+\.\d+ ")
 
 
 def read_events(lines):
@@ -45,7 +48,7 @@ def read_events(lines):
     events = []
     last_boot = False
     for raw in lines:
-        line = raw.rstrip("\r\n")
+        line = CAPTURE_STAMP.sub("", raw.rstrip("\r\n"), count=1)
         text = line.strip()
         if not text:
             continue
