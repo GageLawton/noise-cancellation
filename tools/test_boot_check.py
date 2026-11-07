@@ -57,6 +57,17 @@ def test_bad_log_lists_every_problem():
     assert format_report(result)[-1].startswith("RESULT: CHECK (")
 
 
+def stamped(text):
+    """Return text as tools/capture.py saves it, a time stamp on each line."""
+    return [f"{i * 0.25:.3f} {line}" for i, line in enumerate(text.splitlines())]
+
+
+def test_capture_py_time_stamps_give_the_same_result():
+    for text in (GOOD, BAD):
+        assert check(stamped(text)) == check(text.splitlines())
+    assert check(stamped(BAD))["warnings"]
+
+
 def test_log_without_telemetry_needs_a_check():
     result = check(["I (310) runtime: BOOT -> INIT_HAL"])
     assert "no telemetry line with under= and drop=" in problems(result)
