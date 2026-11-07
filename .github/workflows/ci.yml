@@ -136,6 +136,21 @@ jobs:
           target: esp32s3
           path: 'examples/sync_loopback'
 
+  sync-two-boards-build:
+    name: Example build (sync_two_boards)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # examples/sync_two_boards is the two-board version of sync_loopback,
+      # built the same way against the real GpioSyncTick.
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32s3
+          path: 'examples/sync_two_boards'
+
   format:
     name: Format check
     runs-on: ubuntu-latest
