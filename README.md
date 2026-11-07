@@ -289,6 +289,8 @@ Other tools in `tools/` (run any of them with `--help` for options):
 - [`bench_summary.py`](tools/bench_summary.py): summarizes a long telemetry log from a bench check: drops, faults and sync counts, the mic, residual and hum levels, the clock offset, how often the tracker was locked, and (for the lock-threshold check) the hum level and frequency split by lock, with the hum as the amplitude `tracking.min_lock_amplitude` is compared against.
 - [`console_check.py`](tools/console_check.py): reads a saved monitor log from the serial-command bench check (`help`, `get`, `set`, `recal`, `save` and a restart) and says PASS or CHECK for each of the six steps, plus any typed line the console didn't understand. Ends with `RESULT: PASS` or `RESULT: CHECK`.
 - [`stack_check.py`](tools/stack_check.py): reads a long monitor log and reports the smallest free stack seen for each task, flagging any under 512 bytes, and whether `under=` or `drop=` grew. Ends with `RESULT: PASS` or `RESULT: CHECK` and the reasons.
+- [`capture.py`](tools/capture.py): saves a serial log straight from the board's port, with the seconds since the start in front of each line, until `--seconds` pass or you press Ctrl+C. Needs `pyserial` (`pip install pyserial`), which only bench users need.
+- [`fxlms_sim.py`](tools/fxlms_sim.py): simulates the canceller against a 60 Hz hum on a laptop, to try step sizes (`--mu`) and loop delays before a board run. Needs nothing extra.
 
 The tools have their own tests, run by the **Python tools** CI job:
 
