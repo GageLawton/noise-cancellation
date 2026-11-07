@@ -34,6 +34,8 @@ The sync line keeps several boards in step: one board sends a short pulse (a syn
 
 With a single board, a jumper wire from GPIO15 to GPIO16 lets the board hear its own tick; this is the loopback bench check in [#267](https://github.com/GageLawton/noise-cancellation/issues/267).
 
+[`examples/sync_loopback/`](../examples/sync_loopback/) runs that one-board jumper check, and [`examples/sync_two_boards/`](../examples/sync_two_boards/) checks two boards wired as in the table above.
+
 Both boards run at 3.3 V logic. Never connect a 5 V pin to a GPIO.
 
 ## Troubleshooting
