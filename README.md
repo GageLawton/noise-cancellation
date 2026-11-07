@@ -285,6 +285,7 @@ Other tools in `tools/` (run any of them with `--help` for options):
 - [`plot_ir.py`](tools/plot_ir.py): draws an impulse response from `ir_from_log.py --csv` as a picture, optionally next to a second one (needs matplotlib).
 - [`spectrum.py`](tools/spectrum.py): plots what frequencies a recording holds, to spot hums and their harmonics (needs matplotlib).
 - [`telemetry_to_csv.py`](tools/telemetry_to_csv.py): turns the firmware's telemetry lines into a CSV table; `--every N` keeps every Nth row to thin long logs.
+- [`boot_check.py`](tools/boot_check.py): reads a saved first-boot monitor log and answers the first-boot bench check: states reached, the calibration peak and any warnings, the last `under=` and `drop=`, and any crash or reboot. Ends with `RESULT: PASS` or `RESULT: CHECK` and the reasons.
 - [`bench_summary.py`](tools/bench_summary.py): summarizes a long telemetry log from a bench check: drops, faults and sync counts, the mic, residual and hum levels, the clock offset, and how often the tracker was locked.
 
 The tools have their own tests, run by the **Python tools** CI job:
