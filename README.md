@@ -287,6 +287,7 @@ Other tools in `tools/` (run any of them with `--help` for options):
 - [`telemetry_to_csv.py`](tools/telemetry_to_csv.py): turns the firmware's telemetry lines into a CSV table; `--every N` keeps every Nth row to thin long logs.
 - [`boot_check.py`](tools/boot_check.py): reads a saved first-boot monitor log and answers the first-boot bench check: states reached, the calibration peak and any warnings, the last `under=` and `drop=`, and any crash or reboot. Ends with `RESULT: PASS` or `RESULT: CHECK` and the reasons.
 - [`bench_summary.py`](tools/bench_summary.py): summarizes a long telemetry log from a bench check: drops, faults and sync counts, the mic, residual and hum levels, the clock offset, how often the tracker was locked, and (for the lock-threshold check) the hum level and frequency split by lock, with the hum as the amplitude `tracking.min_lock_amplitude` is compared against.
+- [`stack_check.py`](tools/stack_check.py): reads a long monitor log and reports the smallest free stack seen for each task, flagging any under 512 bytes, and whether `under=` or `drop=` grew. Ends with `RESULT: PASS` or `RESULT: CHECK` and the reasons.
 
 The tools have their own tests, run by the **Python tools** CI job:
 
